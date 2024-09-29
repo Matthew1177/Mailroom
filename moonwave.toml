@@ -1,0 +1,2 @@
+gitSourceBranch = "main"
+classOrder = ["Mailroom", "Collection", "Document", "Snapshot", "Patch"]

@@ -1,0 +1,24 @@
+{
+  "name": "Mailroom",
+  "tree": {
+    "$className": "DataModel",
+
+    "ReplicatedStorage": {
+      "Packages": {
+        "$path": "Packages",
+        "Mailroom": {
+          "$path": "src"
+        }
+      },
+      "DevPackages": {
+        "$path": "DevPackages"
+      }
+    },
+
+    "ServerScriptService": {
+      "testRunner": {
+        "$path": "test/testRunner.server.luau"
+      }
+    }
+  }
+}
