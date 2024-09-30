@@ -1,0 +1,23 @@
+# Roblox Studio level files
+/*.rbxlx.lock
+/*.rbxlx
+/*.rbxl.lock
+/*.rbxl
+
+Packages/
+DevPackages/
+wally.lock
+
+sourcemap.json
+
+# Moonwave files
+/build
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
