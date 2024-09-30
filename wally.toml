@@ -1,0 +1,9 @@
+[package]
+name = "matthew1177/mailroom"
+version = "0.1.0"
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+
+[dev-dependencies]
+Midori = "nezuo/midori@0.1.4"
+DataStoreServiceMock = "nezuo/data-store-service-mock@0.3.7"
