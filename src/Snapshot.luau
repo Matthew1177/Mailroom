@@ -1,0 +1,118 @@
+local Document = require(script.Parent.Document)
+local Lock = require(script.Parent.Lock)
+local patch = require(script.Parent.patch)
+
+local Snapshot = {}
+Snapshot.__index = Snapshot
+Snapshot._type = "Snapshot" :: "Snapshot"
+
+type SnapshotParent<Data,Metadata,Action> = Snapshot<Data,Metadata,Action> | Document.Document<Data,Metadata,Action>
+
+export type Snapshot<Data,Metadata,Action> = typeof(setmetatable(
+    {} :: {
+        parent: SnapshotParent<Data,Metadata,Action>,
+        head: Document.DocumentData<Data,Metadata,Action>,
+        base: Document.DocumentData<Data,Metadata,Action>,
+        actions: {Action},
+        reducer: patch.Reducer<Document.DocumentData<Data,Metadata,Action>, Action>,
+        lock: Lock.Lock,
+    },
+    Snapshot
+))
+
+function Snapshot.new<Data,Metadata,Action>(
+    parent: SnapshotParent<Data,Metadata,Action>,
+    data: Document.DocumentData<Data,Metadata,Action>
+): Snapshot<Data,Metadata,Action>
+    return setmetatable({
+        parent = parent,
+        head = data,
+        base = data,
+        actions = {},
+        reducer = parent.reducer,
+        lock = Lock.new()
+    }, Snapshot)
+end
+
+function Snapshot.dispatch<Data,Metadata,Action>(
+    self: Snapshot<Data,Metadata,Action>,
+    action: Action
+): patch.PatchResult<Document.DocumentData<Data,Metadata,Action>, Action>
+    -- apply patch
+    local result = patch(self.head, self.reducer, {action})
+    if result.success then
+        self.head = result.data
+        table.insert(self.actions, action)
+    end
+
+    return result
+end
+
+-- not actually async
+function Snapshot.patch<Data,Metadata,Action>(
+    self: Snapshot<Data,Metadata,Action>,
+    actions: {Action}
+): patch.PatchResult<Document.DocumentData<Data,Metadata,Action>, Action>
+    local result = patch(self.head, self.reducer, actions)
+    self.head = result.data
+
+    for i, action in actions do
+        if not result.success and i >= result.index then break end
+        table.insert(self.actions, action)
+    end
+
+    return result
+end
+
+function Snapshot._syncAsync<Data,Metadata,Action>(
+    self: Snapshot<Data,Metadata,Action>
+)
+    local actions = table.clone(self.actions)
+    local result: patch.PatchResult<Document.DocumentData<Data,Metadata,Action>, Action>
+    if self.parent._type == "Document" then
+        result = (self.parent :: Document.Document<Data,Metadata,Action>):patchAsync(actions)
+    elseif self.parent._type == "Snapshot" then
+        result = (self.parent :: Snapshot<Data,Metadata,Action>):patch(actions)
+    else
+        error("Invalid parent type")
+    end
+
+    -- reapply actions
+    local newActions
+    if result.success then
+        newActions = {unpack(self.actions, #actions)}
+    else
+        newActions = {unpack(self.actions, result.index)}
+    end
+
+    local newHead = result.data
+    for _, action in ipairs(newActions) do
+        newHead = self.reducer(newHead, action)
+    end
+
+    self.base = result.data
+    self.head = newHead
+    self.actions = newActions
+
+    return result
+end
+
+function Snapshot.syncAsync<Data,Metadata,Action>(
+    self: Snapshot<Data,Metadata,Action>
+)
+    local doUnlock = self.lock:lock()
+
+    local values = table.pack(pcall(self._syncAsync, self))
+
+    if doUnlock then
+        self.lock:unlock()
+    end
+
+    if not values[1] then
+        error(values[2])
+    end
+
+    return table.unpack(values, 2, values.n)
+end
+
+return Snapshot

@@ -5,6 +5,7 @@
   
       "ReplicatedStorage": {
         "Packages": {
+          "$className": "Folder",
           "Mailroom": {
             "$path": "src"
           }
