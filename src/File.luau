@@ -74,7 +74,10 @@ function File.updateAsync<T>(self: File<T>, callback: (T) -> T?): T
             return nil
         end
 
-        local saveSuccess, toSave, userIds, metadata = pcall(self.saveTransform, updated)
+        local saveSuccess, toSave, userIds, metadata = pcall(
+            self.saveTransform, 
+            if updated == nil then loaded else updated
+        )
         if not saveSuccess then
             success, err = false, toSave
             return nil

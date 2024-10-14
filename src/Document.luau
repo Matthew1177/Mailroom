@@ -62,12 +62,12 @@ function Document._patchAsync<Data, Metadata, Action>(
     actions: {Action},
     transactionId: string?,
     transactionResolved: boolean?
-): patch.PatchResult<Data, Action>
-    local patchResult: patch.PatchResult<Data, Action>
+): patch.PatchResult<DocumentData<Data, Metadata, Action>, Action>
+    local patchResult: patch.PatchResult<DocumentData<Data, Metadata, Action>, Action>
     local data = self.file:updateAsync(function(data: DocumentData<Data, Metadata, Action>): DocumentData<Data, Metadata, Action>?
         local txInfo = data.internal.transaction
         if txInfo then
-            if txInfo.transactionId ~= transactionId then
+            if txInfo.id ~= transactionId then
                 return nil
             end
 
@@ -85,23 +85,21 @@ function Document._patchAsync<Data, Metadata, Action>(
         return patchResult.data
     end)
 
-    assert(data ~= nil) -- should never be nil, for typechecking
-
     local txInfo = data.internal.transaction
     if txInfo then
         -- we must resolve this
         local resolved = self.transactionManager:checkResolvedAsync(txInfo)
-        return self:_patchAsync(actions, txInfo.id, resolved) :: patch.PatchResult<Data, Action>
+        return self:_patchAsync(actions, txInfo.id, resolved)
     end
 
-    patchResult.data = data
+    (patchResult :: any).data = data
     return patchResult
 end
 
 function Document.patchAsync<Data, Metadata, Action>(
     self: Document<Data, Metadata, Action>,
     actions: {Action}
-): patch.PatchResult<Data, Action>
+): patch.PatchResult<DocumentData<Data, Metadata, Action>, Action>
     return self:_patchAsync(actions, nil, nil)
 end
 
