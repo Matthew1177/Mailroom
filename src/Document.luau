@@ -73,11 +73,9 @@ function Document._patchAsync<Data, Metadata, Action>(
 
             data.internal.transaction = nil
             if transactionResolved then
-                local patchResult = patch(data, self.reducer, txInfo.actions)
-                if not patchResult.success then
-                    error("Transaction failed to apply")
-                end
-                return patchResult.data
+                local transactionPatch = patch(data, self.reducer, txInfo.actions)
+                assert(transactionPatch.success, "Transaction failed to apply")
+                data = transactionPatch.data
             end
         end
 
