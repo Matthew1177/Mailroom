@@ -1,0 +1,151 @@
+local Document = require(script.Parent.Document)
+local patch = require(script.Parent.patch)
+local Snapshot = require(script.Parent.Snapshot)
+local TransactionManager = require(script.Parent.TransactionManager)
+
+local HttpService = game:GetService("HttpService") :: HttpService
+
+local Mailroom = {}
+Mailroom.__index = Mailroom
+
+export type Mailroom = typeof(setmetatable(
+    {} :: {
+        transactionManager: TransactionManager.TransactionManager,
+    },
+    Mailroom
+))
+
+function Mailroom.new(): Mailroom
+    local self = setmetatable({
+        transactionManager = TransactionManager.new(),
+    }, Mailroom)
+
+    return self
+end
+
+function Mailroom._runTransaction(
+    self: Mailroom, 
+    actionsMap: {[Snapshot.Snapshot<any, any, any> | Document.Document<any, any, any>]: {any}}
+): boolean
+    local mainThread = coroutine.running()
+
+    local transactionId = HttpService:GenerateGUID(false)
+    local failsAfter = DateTime.now().UnixTimestampMillis + 1000 * 10
+    local timeoutAfter = failsAfter + 1000 * 2 -- 2 seconds extra
+
+    local totalCnt = 0
+    local resolvedCnt = 0
+    local resolved = nil
+    for snapshotOrDocument, actions in actionsMap do
+        totalCnt += 1
+        local coro = coroutine.create(function()
+            local txInfo = {
+                id = transactionId,
+                failsAfter = failsAfter,
+                timeoutAfter = timeoutAfter,
+                actions = actions,
+            }
+            local success = pcall(function()
+                if snapshotOrDocument._type == "Document" then
+                    (snapshotOrDocument :: Document.Document<any, any, any>):patchAsync({}, nil, nil, txInfo)
+                else
+                    (snapshotOrDocument :: Snapshot.Snapshot<any, any, any>):_syncAsync(txInfo)
+                end
+            end)
+
+            if resolved ~= nil then -- already resolved
+                return
+            end
+
+            if not success then -- transaction failed
+                resolved = false
+                task.defer(mainThread)
+                return
+            end
+            
+            resolvedCnt += 1
+            if resolvedCnt >= totalCnt then
+                resolved = true
+                task.defer(mainThread)
+            end
+        end)
+        task.defer(coro)
+    end
+
+    coroutine.yield()
+
+    local didResolve = self.transactionManager:markResolvedAsync(transactionId, failsAfter, timeoutAfter, resolved)
+
+    if didResolve then
+        for snapshotOrDocument, actions in actionsMap do
+            if snapshotOrDocument._type == "Snapshot" then
+                local base = (snapshotOrDocument :: Snapshot.Snapshot<any, any, any>).base
+                local tResult = patch(base, snapshotOrDocument.reducer, actions)
+                if not tResult.success then
+                    -- throw error in new thread
+                    task.spawn(error, "Transaction failed to apply after resolution - reducer may have side effects")
+                end
+                local newBase = tResult.data
+                ;(snapshotOrDocument :: any).base = newBase
+                local result = patch(newBase, snapshotOrDocument.reducer, (snapshotOrDocument :: any).actions)
+                ;(snapshotOrDocument :: any).head = result.data
+                -- remove any actions that were not applied
+                if not result.success then
+                    (snapshotOrDocument :: any).actions = {unpack((snapshotOrDocument :: any).actions, result.index)}
+                end
+            end
+        end
+    end
+
+    return didResolve
+end
+
+function Mailroom.runTransaction(
+    self: Mailroom,
+    actionsMap: {[Snapshot.Snapshot<any, any, any> | Document.Document<any, any, any>]: {any}}
+): boolean
+    for snapshotOrDocument in actionsMap do
+        assert(snapshotOrDocument._type == "Document" 
+            or (snapshotOrDocument :: any).parent._type == "Document",
+            "Document or child of Document expected"
+        )
+    end
+
+    local mainThread = coroutine.running()
+    -- lock all snapshots
+    local unlockMap = {}
+    local cntSnapshots = 0
+    local cntSnapshotsUnlocked = 0
+    for snapshotOrDocument in actionsMap do
+        if snapshotOrDocument._type == "Snapshot" then
+            cntSnapshots += 1
+            local coro = coroutine.create(function()
+                local lock = (snapshotOrDocument :: Snapshot.Snapshot<any, any, any>).lock
+                local res = lock:lock(mainThread)
+                unlockMap[lock] = res
+                cntSnapshotsUnlocked += 1
+                if cntSnapshotsUnlocked >= cntSnapshots then
+                    task.defer(mainThread)
+                end
+            end)
+            task.defer(coro)
+        end
+    end
+    coroutine.yield()
+
+    local success, result = pcall(self._runTransaction, self, actionsMap)
+    -- unlock all snapshots
+    for lock, doUnlock in unlockMap do
+        if doUnlock then
+            lock:unlock(mainThread)
+        end
+    end
+
+    if not success then
+        error(result)
+    end
+
+    return result
+end
+
+return Mailroom

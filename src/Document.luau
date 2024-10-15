@@ -1,6 +1,7 @@
 local File = require(script.Parent.File)
 local patch = require(script.Parent.patch)
 local TransactionManager = require(script.Parent.TransactionManager)
+
 local Document = {}
 Document.__index = Document
 Document._type = "Document" :: "Document"
@@ -31,7 +32,7 @@ function Document.new<Data, Metadata, Action>(
     saveTransform: File.SaveTransform<DocumentData<Data, Metadata, Action>>,
     reducer: patch.Reducer<DocumentData<Data, Metadata, Action>, Action>,
     transactionManager: TransactionManager.TransactionManager
-)
+): Document<Data, Metadata, Action>
     local self = setmetatable({
         file = File.new(dataStore, key, loadTransform, saveTransform),
         reducer = reducer,
@@ -57,26 +58,35 @@ function Document.getAsync<Data, Metadata, Action>(self: Document<Data, Metadata
     return result
 end
 
-function Document._patchAsync<Data, Metadata, Action>(
+function Document.patchAsync<Data, Metadata, Action>(
     self: Document<Data, Metadata, Action>,
     actions: {Action},
-    transactionId: string?,
-    transactionResolved: boolean?
+    oldTransactionId: string?,
+    oldTransactionResolved: boolean?,
+    newTransactionInfo: TransactionManager.TransactionInfo<Action>?
 ): patch.PatchResult<DocumentData<Data, Metadata, Action>, Action>
     local patchResult: patch.PatchResult<DocumentData<Data, Metadata, Action>, Action>
     local data = self.file:updateAsync(function(data: DocumentData<Data, Metadata, Action>): DocumentData<Data, Metadata, Action>?
         local txInfo = data.internal.transaction
         if txInfo then
-            if txInfo.id ~= transactionId then
+            if txInfo.id ~= oldTransactionId then
                 return nil
             end
 
             data.internal.transaction = nil
-            if transactionResolved then
+            if oldTransactionResolved then
                 local transactionPatch = patch(data, self.reducer, txInfo.actions)
-                assert(transactionPatch.success, "Transaction failed to apply")
+                assert(transactionPatch.success, "Old transaction failed to apply")
                 data = transactionPatch.data
             end
+        end
+
+        if newTransactionInfo then
+            local result = patch(data, self.reducer, newTransactionInfo.actions)
+            if not result.success then
+                error("New transaction failed to apply")
+            end
+            data.internal.transaction = newTransactionInfo
         end
 
         patchResult = patch(data, self.reducer, actions)
@@ -87,18 +97,11 @@ function Document._patchAsync<Data, Metadata, Action>(
     if txInfo then
         -- we must resolve this
         local resolved = self.transactionManager:checkResolvedAsync(txInfo)
-        return self:_patchAsync(actions, txInfo.id, resolved)
+        return self:patchAsync(actions, txInfo.id, resolved, newTransactionInfo)
     end
 
     (patchResult :: any).data = data
     return patchResult
-end
-
-function Document.patchAsync<Data, Metadata, Action>(
-    self: Document<Data, Metadata, Action>,
-    actions: {Action}
-): patch.PatchResult<DocumentData<Data, Metadata, Action>, Action>
-    return self:_patchAsync(actions, nil, nil)
 end
 
 return Document

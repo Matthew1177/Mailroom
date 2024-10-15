@@ -61,4 +61,19 @@ function TransactionManager:checkResolvedAsync(info: TransactionInfo<unknown>): 
     until false
 end
 
+function TransactionManager:markResolvedAsync(id: string, failsAfter: number, timeoutAfter: number, status: boolean): boolean
+    if status == false then return false end
+
+    local now = DateTime.now().UnixTimestampMillis
+    if now > timeoutAfter then
+        return false
+    end
+
+   local _,keyInfo = TransactionDataStore:UpdateAsync(id, function()
+        return true
+   end)
+
+    return keyInfo.UpdatedTime > failsAfter
+end
+
 return TransactionManager

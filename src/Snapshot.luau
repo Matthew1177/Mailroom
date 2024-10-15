@@ -1,6 +1,7 @@
 local Document = require(script.Parent.Document)
 local Lock = require(script.Parent.Lock)
 local patch = require(script.Parent.patch)
+local TransactionManager = require(script.Parent.TransactionManager)
 
 local Snapshot = {}
 Snapshot.__index = Snapshot
@@ -30,7 +31,7 @@ function Snapshot.new<Data,Metadata,Action>(
         base = data,
         actions = {},
         reducer = parent.reducer,
-        lock = Lock.new()
+        lock = Lock.new(),
     }, Snapshot)
 end
 
@@ -65,7 +66,8 @@ function Snapshot.patch<Data,Metadata,Action>(
 end
 
 function Snapshot._syncAsync<Data,Metadata,Action>(
-    self: Snapshot<Data,Metadata,Action>
+    self: Snapshot<Data,Metadata,Action>,
+    newTransactionInfo: TransactionManager.TransactionInfo<Action>?
 )
     local actions = table.clone(self.actions)
     local result: patch.PatchResult<Document.DocumentData<Data,Metadata,Action>, Action>
@@ -102,17 +104,17 @@ function Snapshot.syncAsync<Data,Metadata,Action>(
 )
     local doUnlock = self.lock:lock()
 
-    local values = table.pack(pcall(self._syncAsync, self))
+    local success, result = pcall(self._syncAsync, self)
 
     if doUnlock then
         self.lock:unlock()
     end
 
-    if not values[1] then
-        error(values[2])
+    if not success then
+        error(result)
     end
 
-    return table.unpack(values, 2, values.n)
+    return result
 end
 
 return Snapshot

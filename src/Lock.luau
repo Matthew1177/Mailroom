@@ -14,8 +14,8 @@ function Lock.hasLock(self: Lock): boolean
     return self.lockThread == coroutine.running()
 end
 
-function Lock.lock(self: Lock): boolean
-    local running = coroutine.running()
+function Lock.lock(self: Lock, thread: thread?): boolean
+    local running = thread or coroutine.running()
     if running == self.lockThread then
         return false
     end
@@ -34,9 +34,10 @@ function Lock.lock(self: Lock): boolean
     return true
 end
 
-function Lock.unlock(self: Lock)
+function Lock.unlock(self: Lock, thread: thread?)
+    local running = thread or coroutine.running()
     local canUnlock = not self.lockThread
-        or self.lockThread == coroutine.running()
+        or self.lockThread == running
     if not canUnlock then
         error("Cannot unlock a lock that is not owned by the current thread")
     end
