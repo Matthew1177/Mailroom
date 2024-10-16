@@ -42,17 +42,17 @@ function Document.new<Data, Metadata, Action>(
     return self
 end
 
-function Document.getAsync<Data, Metadata, Action>(self: Document<Data, Metadata, Action>): DocumentData<Data, Metadata, Action>
-    local result = self.file:getAsync()
+function Document.get<Data, Metadata, Action>(self: Document<Data, Metadata, Action>): DocumentData<Data, Metadata, Action>
+    local result = self.file:get()
     local txInfo = result.internal.transaction
     if txInfo then
-        Debug:info(`Document.getAsync for {self.file.key} found transaction {txInfo.id}`)
+        Debug:info(`Document.get for {self.file.key} found transaction {txInfo.id}`)
         local resolved = self.transactionManager:checkResolvedAsync(txInfo)
-        Debug:info(`Document.getAsync transaction {txInfo.id} resolved: {resolved}`)
+        Debug:info(`Document.get transaction {txInfo.id} resolved: {resolved}`)
         result.internal.transaction = nil
         if resolved then
             local patchResult = patch(result, self.reducer, txInfo.actions)
-            Debug:verbose(`Document.getAsync transaction {txInfo.id} patch result: {patchResult}`)
+            Debug:verbose(`Document.get transaction {txInfo.id} patch result: {patchResult}`)
             if not patchResult.success then
                 error("Transaction failed to apply")
             end
@@ -62,7 +62,7 @@ function Document.getAsync<Data, Metadata, Action>(self: Document<Data, Metadata
     return result
 end
 
-function Document.patchAsync<Data, Metadata, Action>(
+function Document.patch<Data, Metadata, Action>(
     self: Document<Data, Metadata, Action>,
     actions: {Action},
     oldTransactionId: string?,
@@ -70,29 +70,29 @@ function Document.patchAsync<Data, Metadata, Action>(
     newTransactionInfo: TransactionManager.TransactionInfo<Action>?
 ): patch.PatchResult<DocumentData<Data, Metadata, Action>, Action>
     local patchResult: patch.PatchResult<DocumentData<Data, Metadata, Action>, Action>
-    local data = self.file:updateAsync(function(data: DocumentData<Data, Metadata, Action>): DocumentData<Data, Metadata, Action>?
+    local data = self.file:update(function(data: DocumentData<Data, Metadata, Action>): DocumentData<Data, Metadata, Action>?
         local txInfo = data.internal.transaction
         if txInfo then
-            Debug:info(`Document.patchAsync for {self} found transaction {txInfo.id}`)
+            Debug:info(`Document.patch for {self} found transaction {txInfo.id}`)
             if txInfo.id ~= oldTransactionId then
-                Debug:info(`Document.patchAsync transaction {txInfo.id} resolution unknown, skipping`)
+                Debug:info(`Document.patch transaction {txInfo.id} resolution unknown, skipping`)
                 return nil
             end
 
             data.internal.transaction = nil
             if oldTransactionResolved then
-                Debug:info(`Document.patchAsync transaction {txInfo.id} already resolved, applying patch`)
+                Debug:info(`Document.patch transaction {txInfo.id} already resolved, applying patch`)
                 local transactionPatch = patch(data, self.reducer, txInfo.actions)
-                Debug:verbose(`Document.patchAsync transaction {txInfo.id} patch result: {transactionPatch}`)
+                Debug:verbose(`Document.patch transaction {txInfo.id} patch result: {transactionPatch}`)
                 assert(transactionPatch.success, "Old transaction failed to apply")
                 data = transactionPatch.data
             end
         end
 
         if newTransactionInfo then
-            Debug:info(`Document.patchAsync for {self} applying new transaction {newTransactionInfo.id}`)
+            Debug:info(`Document.patch for {self} applying new transaction {newTransactionInfo.id}`)
             local result = patch(data, self.reducer, newTransactionInfo.actions)
-            Debug:verbose(`Document.patchAsync new transaction {newTransactionInfo.id} patch result: {result}`)
+            Debug:verbose(`Document.patch new transaction {newTransactionInfo.id} patch result: {result}`)
             if not result.success then
                 error("New transaction failed to apply")
             end
@@ -106,9 +106,9 @@ function Document.patchAsync<Data, Metadata, Action>(
     local txInfo = data.internal.transaction
     if txInfo and (newTransactionInfo == nil or newTransactionInfo.id ~= txInfo.id) then
         -- we must resolve this
-        Debug:info(`Document.patchAsync for {self} found transaction {txInfo.id}`)
+        Debug:info(`Document.patch for {self} found transaction {txInfo.id}`)
         local resolved = self.transactionManager:checkResolvedAsync(txInfo)
-        return self:patchAsync(actions, txInfo.id, resolved, newTransactionInfo)
+        return self:patch(actions, txInfo.id, resolved, newTransactionInfo)
     end
 
     (patchResult :: any).data = data

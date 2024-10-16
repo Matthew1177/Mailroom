@@ -42,12 +42,12 @@ function File.new<T>(
     return self
 end
 
-function File.getAsync<T>(self: File<T>): T
+function File.get<T>(self: File<T>): T
     local data: unknown, keyInfo: DataStoreKeyInfo = self.datastore:GetAsync(self.key)
     return self.loadTransform(data, keyInfo)
 end
 
-function File.setAsync<T>(self: File<T>, value: T): string
+function File.set<T>(self: File<T>, value: T): string
     local data, userIds, metadata = self.saveTransform(value)
 
     local setOptions
@@ -59,7 +59,7 @@ function File.setAsync<T>(self: File<T>, value: T): string
     return self.datastore:SetAsync(self.key, data, userIds, setOptions)
 end
 
-function File.updateAsync<T>(self: File<T>, callback: (T) -> T?): T
+function File.update<T>(self: File<T>, callback: (T) -> T?): T
     local success: boolean, err: any = false, nil
     local updater: DataStoreUpdateCallback = function(data, keyInfo)
         local loadSuccess, loaded = pcall(self.loadTransform, data, keyInfo)
@@ -95,7 +95,7 @@ function File.updateAsync<T>(self: File<T>, callback: (T) -> T?): T
     return self.loadTransform(savedData, keyInfo)
 end
 
-function File.removeAsync<T>(self: File<T>): T
+function File.remove<T>(self: File<T>): T
     local data: unknown, keyInfo: DataStoreKeyInfo = self.datastore:RemoveAsync(self.key)
 
     return self.loadTransform(data, keyInfo)

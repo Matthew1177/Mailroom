@@ -65,19 +65,12 @@ function Snapshot.patch<Data,Metadata,Action>(
     return result
 end
 
-function Snapshot._syncAsync<Data,Metadata,Action>(
+function Snapshot._sync<Data,Metadata,Action>(
     self: Snapshot<Data,Metadata,Action>,
     newTransactionInfo: TransactionManager.TransactionInfo<Action>?
 )
     local actions = table.clone(self.actions)
-    local result: patch.PatchResult<Document.DocumentData<Data,Metadata,Action>, Action>
-    if self.parent._type == "Document" then
-        result = (self.parent :: Document.Document<Data,Metadata,Action>):patchAsync(actions)
-    elseif self.parent._type == "Snapshot" then
-        result = (self.parent :: Snapshot<Data,Metadata,Action>):patch(actions)
-    else
-        error("Invalid parent type")
-    end
+    local result: patch.PatchResult<Document.DocumentData<Data,Metadata,Action>, Action> = (self.parent :: any):patch(actions)
 
     -- reapply actions
     local newActions
@@ -99,12 +92,12 @@ function Snapshot._syncAsync<Data,Metadata,Action>(
     return result
 end
 
-function Snapshot.syncAsync<Data,Metadata,Action>(
+function Snapshot.sync<Data,Metadata,Action>(
     self: Snapshot<Data,Metadata,Action>
 )
     local doUnlock = self.lock:lock()
 
-    local success, result = pcall(self._syncAsync, self)
+    local success, result = pcall(self._sync, self)
 
     if doUnlock then
         self.lock:unlock()

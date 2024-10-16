@@ -54,9 +54,9 @@ function Mailroom._runTransaction(
             }
             local success, message = pcall(function()
                 if snapshotOrDocument._type == "Document" then
-                    (snapshotOrDocument :: Document.Document<any, any, any>):patchAsync({}, nil, nil, txInfo)
+                    (snapshotOrDocument :: Document.Document<any, any, any>):patch({}, nil, nil, txInfo)
                 else
-                    (snapshotOrDocument :: Snapshot.Snapshot<any, any, any>):_syncAsync(txInfo)
+                    (snapshotOrDocument :: Snapshot.Snapshot<any, any, any>):_sync(txInfo)
                 end
             end)
 
