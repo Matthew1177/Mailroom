@@ -101,4 +101,8 @@ function File.removeAsync<T>(self: File<T>): T
     return self.loadTransform(data, keyInfo)
 end
 
+function File.__tostring(self: File<any>): string
+    return `File({self.key})`
+end
+
 return File
