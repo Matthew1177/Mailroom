@@ -7,12 +7,19 @@ local Document = {}
 Document.__index = Document
 Document._type = "Document" :: "Document"
 
-export type DocumentData<Data, Metadata, Action> = {
+export type LoadTransform<Data, Metadata, Action> = (data: unknown?, keyInfo: DataStoreKeyInfo?) -> (Data, Metadata)
+export type SaveTransform<Data, Metadata, Action> = (data: Data, metadata: Metadata) -> (any, {[any]: any})
+export type Reducer<Data, Metadata, Action> = (BaseDocumentData<Data, Metadata>, Action) -> BaseDocumentData<Data, Metadata>
+export type InternalReducer<Data, Metadata, Action> = patch.Reducer<DocumentData<Data, Metadata, Action>, Action>
+
+export type BaseDocumentData<Data, Metadata> = {
     data: Data,
     metadata: Metadata,
     userIds: {number},
-    keyInfo: DataStoreKeyInfo,
-    internal: {
+}
+
+export type DocumentData<Data, Metadata, Action> = BaseDocumentData<Data, Metadata> & {
+    mailroom: {
         transaction: TransactionManager.TransactionInfo<Action>?,
     }
 }
@@ -20,23 +27,76 @@ export type DocumentData<Data, Metadata, Action> = {
 export type Document<Data, Metadata, Action> = typeof(setmetatable(
     {} :: {
         file: File.File<DocumentData<Data, Metadata, Action>>,
-        reducer: patch.Reducer<DocumentData<Data, Metadata, Action>, Action>,
+        reducer: InternalReducer<Data, Metadata, Action>,
         transactionManager: TransactionManager.TransactionManager,
     },
     Document
 ))
 
+local function documentLoadTransformWrapper<Data, Metadata, Action>(loadTransform: LoadTransform<Data, Metadata, Action>)
+    local transform: File.LoadTransform<DocumentData<Data, Metadata, Action>> = function(data: unknown?, keyInfo: DataStoreKeyInfo?)
+        if typeof(data) ~= "table" then
+            data = {}
+            Debug:warn("Document data was not a table, initializing to empty table")
+        end
+
+        local inner, metadata = loadTransform((data :: any).data, keyInfo)
+        local userIds = if keyInfo ~= nil then keyInfo:GetUserIds() else {} :: {number}
+        return {
+            data = inner,
+            metadata = metadata,
+            userIds = userIds,
+            mailroom = (data :: any).mailroom or {} :: any
+        }
+    end
+
+    return transform
+end
+
+local function documentSaveTransformWrapper<Data, Metadata, Action>(saveTransform: (data: Data, metadata: Metadata) -> (any, {[any]: any}))
+    local transform: File.SaveTransform<DocumentData<Data, Metadata, Action>> = function(data)
+        local inner, metadata = saveTransform(data.data, data.metadata)
+        return {
+            data = inner,
+            mailroom = data.mailroom,
+        }, data.userIds, metadata
+    end
+
+    return transform
+end
+
+local function reducerWrapper<Data, Metadata, Action>(reducer: (BaseDocumentData<Data, Metadata>, Action) -> BaseDocumentData<Data, Metadata>)
+    local wrapped: InternalReducer<Data, Metadata, Action> = function(data, action)
+        local mailroom = data.mailroom
+        local newData = reducer(data, action)
+        assert(typeof(newData) == "table", "Reducer must return a table")
+
+        assert(typeof(newData.data) == "table", "Reducer must return a table with a data field")
+        assert(typeof(newData.metadata) == "table", "Reducer must return a table with a metadata field")
+        assert(typeof(newData.userIds) == "table", "Reducer must return a table with a userIds field")
+
+        return {
+            data = newData.data,
+            metadata = newData.metadata,
+            userIds = newData.userIds,
+            mailroom = mailroom,
+        }
+    end
+
+    return wrapped
+end
+
 function Document.new<Data, Metadata, Action>(
     dataStore: DataStore,
     key: string,
-    loadTransform: File.LoadTransform<DocumentData<Data, Metadata, Action>>,
-    saveTransform: File.SaveTransform<DocumentData<Data, Metadata, Action>>,
-    reducer: patch.Reducer<DocumentData<Data, Metadata, Action>, Action>,
+    loadTransform: LoadTransform<Data, Metadata, Action>,
+    saveTransform: SaveTransform<Data, Metadata, Action>,
+    reducer: Reducer<Data, Metadata, Action>,
     transactionManager: TransactionManager.TransactionManager
 ): Document<Data, Metadata, Action>
     local self = setmetatable({
-        file = File.new(dataStore, key, loadTransform, saveTransform),
-        reducer = reducer,
+        file = File.new(dataStore, key, documentLoadTransformWrapper(loadTransform), documentSaveTransformWrapper(saveTransform)),
+        reducer = reducerWrapper(reducer),
         transactionManager = transactionManager,
     }, Document)
     return self
@@ -44,12 +104,12 @@ end
 
 function Document.get<Data, Metadata, Action>(self: Document<Data, Metadata, Action>): DocumentData<Data, Metadata, Action>
     local result = self.file:get()
-    local txInfo = result.internal.transaction
+    local txInfo = result.mailroom.transaction
     if txInfo then
         Debug:info(`Document.get for {self.file.key} found transaction {txInfo.id}`)
         local resolved = self.transactionManager:checkResolvedAsync(txInfo)
         Debug:info(`Document.get transaction {txInfo.id} resolved: {resolved}`)
-        result.internal.transaction = nil
+        result.mailroom.transaction = nil
         if resolved then
             local patchResult = patch(result, self.reducer, txInfo.actions)
             Debug:verbose(`Document.get transaction {txInfo.id} patch result: {patchResult}`)
@@ -71,7 +131,7 @@ function Document.patch<Data, Metadata, Action>(
 ): patch.PatchResult<DocumentData<Data, Metadata, Action>, Action>
     local patchResult: patch.PatchResult<DocumentData<Data, Metadata, Action>, Action>
     local data = self.file:update(function(data: DocumentData<Data, Metadata, Action>): DocumentData<Data, Metadata, Action>?
-        local txInfo = data.internal.transaction
+        local txInfo = data.mailroom.transaction
         if txInfo then
             Debug:info(`Document.patch for {self} found transaction {txInfo.id}`)
             if txInfo.id ~= oldTransactionId then
@@ -79,7 +139,7 @@ function Document.patch<Data, Metadata, Action>(
                 return nil
             end
 
-            data.internal.transaction = nil
+            data.mailroom.transaction = nil
             if oldTransactionResolved then
                 Debug:info(`Document.patch transaction {txInfo.id} already resolved, applying patch`)
                 local transactionPatch = patch(data, self.reducer, txInfo.actions)
@@ -96,19 +156,21 @@ function Document.patch<Data, Metadata, Action>(
             if not result.success then
                 error("New transaction failed to apply")
             end
-            data.internal.transaction = newTransactionInfo
+            data.mailroom.transaction = newTransactionInfo
         end
 
         patchResult = patch(data, self.reducer, actions)
         return patchResult.data
     end)
 
-    local txInfo = data.internal.transaction
+    assert(data ~= nil) -- for type checker
+
+    local txInfo = data.mailroom.transaction
     if txInfo and (newTransactionInfo == nil or newTransactionInfo.id ~= txInfo.id) then
         -- we must resolve this
         Debug:info(`Document.patch for {self} found transaction {txInfo.id}`)
         local resolved = self.transactionManager:checkResolvedAsync(txInfo)
-        return self:patch(actions, txInfo.id, resolved, newTransactionInfo)
+        return (self:patch(actions, txInfo.id, resolved, newTransactionInfo))
     end
 
     (patchResult :: any).data = data

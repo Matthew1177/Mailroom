@@ -1,5 +1,6 @@
 local Debug = require(script.Parent.Debug)
 
+local Collection = require(script.Parent.Collection)
 local Document = require(script.Parent.Document)
 local patch = require(script.Parent.patch)
 local Snapshot = require(script.Parent.Snapshot)
@@ -52,7 +53,7 @@ function Mailroom._runTransaction(
                 timeoutAfter = timeoutAfter,
                 actions = actions,
             }
-            local success, message = pcall(function()
+            local success, message = (pcall :: any)(function()
                 if snapshotOrDocument._type == "Document" then
                     (snapshotOrDocument :: Document.Document<any, any, any>):patch({}, nil, nil, txInfo)
                 else
@@ -85,6 +86,7 @@ function Mailroom._runTransaction(
     coroutine.yield()
     Debug:info("Mailroom._runTransaction main thread resumed")
 
+    assert(typeof(resolved) == "boolean")
     local didResolve = self.transactionManager:markResolvedAsync(transactionId, failsAfter, timeoutAfter, resolved)
 
     if didResolve then
@@ -161,7 +163,47 @@ function Mailroom.runTransaction(
         error(result)
     end
 
-    return result
+    return result :: boolean
+end
+
+function Mailroom.createCollection<Data, Metadata, Action>(
+    self: Mailroom,
+    dataStore: DataStore,
+    loadTransform: Document.LoadTransform<Data, Metadata, Action>,
+    saveTransform: Document.SaveTransform<Data, Metadata, Action>,
+    reducer: Document.Reducer<Data, Metadata, Action>
+): Collection.Collection<Data, Metadata, Action>
+    return Collection.new(
+        dataStore,
+        loadTransform,
+        saveTransform,
+        reducer,
+        self.transactionManager
+    )
+end
+
+function Mailroom.createDocument<Data, Metadata, Action>(
+self: Mailroom, dataStore, key, loadTransform, saveTransform, reducer
+): Document.Document<Data, Metadata, Action>
+    return Document.new(
+        dataStore,
+        key,
+        loadTransform,
+        saveTransform,
+        reducer,
+        self.transactionManager
+    )
+end
+
+function Mailroom.createSnapshot<Data, Metadata, Action>(
+    self: Mailroom,
+    parent: Document.Document<Data, Metadata, Action> | Snapshot.Snapshot<Data, Metadata, Action>
+): Snapshot.Snapshot<Data, Metadata, Action>
+    if parent._type == "Document" then
+        return Snapshot.new(parent, (parent :: Document.Document<Data, Metadata, Action>).file:get())
+    else
+        return Snapshot.new(parent, (parent :: Snapshot.Snapshot<Data, Metadata, Action>).head)
+    end
 end
 
 return Mailroom

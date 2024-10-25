@@ -70,7 +70,7 @@ function TransactionManager:markResolvedAsync(id: string, failsAfter: number, ti
     end
 
    local _,keyInfo = TransactionDataStore:UpdateAsync(id, function()
-        return true
+        return true, nil, nil
    end)
 
     return keyInfo.UpdatedTime > failsAfter

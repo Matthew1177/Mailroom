@@ -15,7 +15,7 @@ export type Snapshot<Data,Metadata,Action> = typeof(setmetatable(
         head: Document.DocumentData<Data,Metadata,Action>,
         base: Document.DocumentData<Data,Metadata,Action>,
         actions: {Action},
-        reducer: patch.Reducer<Document.DocumentData<Data,Metadata,Action>, Action>,
+        reducer: Document.InternalReducer<Data,Metadata,Action>,
         lock: Lock.Lock,
     },
     Snapshot
