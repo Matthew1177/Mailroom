@@ -107,7 +107,7 @@ function Document.get<Data, Metadata, Action>(self: Document<Data, Metadata, Act
     local txInfo = result.mailroom.transaction
     if txInfo then
         Debug:info(`Document.get for {self.file.key} found transaction {txInfo.id}`)
-        local resolved = self.transactionManager:checkResolvedAsync(txInfo)
+        local resolved = self.transactionManager:checkResolved(txInfo)
         Debug:info(`Document.get transaction {txInfo.id} resolved: {resolved}`)
         result.mailroom.transaction = nil
         if resolved then
@@ -169,7 +169,7 @@ function Document.patch<Data, Metadata, Action>(
     if txInfo and (newTransactionInfo == nil or newTransactionInfo.id ~= txInfo.id) then
         -- we must resolve this
         Debug:info(`Document.patch for {self} found transaction {txInfo.id}`)
-        local resolved = self.transactionManager:checkResolvedAsync(txInfo)
+        local resolved = self.transactionManager:checkResolved(txInfo)
         return (self:patch(actions, txInfo.id, resolved, newTransactionInfo))
     end
 

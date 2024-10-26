@@ -29,7 +29,7 @@ function TransactionManager.new(): TransactionManager
     return self
 end
 
-function TransactionManager:checkResolvedAsync(info: TransactionInfo<unknown>): boolean
+function TransactionManager:checkResolved(info: TransactionInfo<unknown>): boolean
     local fails = 0
     repeat
         local success, result, keyInfo = pcall(function()
@@ -61,7 +61,7 @@ function TransactionManager:checkResolvedAsync(info: TransactionInfo<unknown>): 
     until false
 end
 
-function TransactionManager:markResolvedAsync(id: string, failsAfter: number, timeoutAfter: number, status: boolean): boolean
+function TransactionManager:markResolved(id: string, failsAfter: number, timeoutAfter: number, status: boolean): boolean
     if status == false then return false end
 
     local now = DateTime.now().UnixTimestampMillis

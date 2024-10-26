@@ -87,7 +87,7 @@ function Mailroom._runTransaction(
     Debug:info("Mailroom._runTransaction main thread resumed")
 
     assert(typeof(resolved) == "boolean")
-    local didResolve = self.transactionManager:markResolvedAsync(transactionId, failsAfter, timeoutAfter, resolved)
+    local didResolve = self.transactionManager:markResolved(transactionId, failsAfter, timeoutAfter, resolved)
 
     if didResolve then
         for snapshotOrDocument, actions in actionsMap do
