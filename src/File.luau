@@ -26,6 +26,9 @@ export type FileOptions<T> = {
     saveTransform: SaveTransform<T>,
 }
 
+local NO_CACHE_OPTIONS = Instance.new("DataStoreGetOptions")
+NO_CACHE_OPTIONS.UseCache = false
+
 function File.new<T>(
     datastore: DataStore,
     key: string,
@@ -43,7 +46,7 @@ function File.new<T>(
 end
 
 function File.get<T>(self: File<T>): T
-    local data: unknown, keyInfo: DataStoreKeyInfo = self.datastore:GetAsync(self.key)
+    local data: unknown, keyInfo: DataStoreKeyInfo = self.datastore:GetAsync(self.key, NO_CACHE_OPTIONS)
     return self.loadTransform(data, keyInfo)
 end
 
