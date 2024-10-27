@@ -1,6 +1,8 @@
+--!nocheck
+-- Checking is disabled as it fails on the `table.isfrozen` function
 local function deepFreeze<T>(x: T): T
     if type(x) == "table" then
-        if not table.isfrozen then
+        if not table.isfrozen(x) then
             table.freeze(x)
         end
 
