@@ -72,7 +72,7 @@ function Mailroom._runTransaction(
                 return
             end
 
-            Debug:verbose("Mailroom._runTransaction transaction resolved for", snapshotOrDocument)
+            Debug:debug("Mailroom._runTransaction transaction resolved for", snapshotOrDocument)
             
             resolvedCnt += 1
             if resolvedCnt >= totalCnt then

@@ -37,7 +37,7 @@ local function documentLoadTransformWrapper<Data, Metadata, Action>(loadTransfor
     local transform: File.LoadTransform<DocumentData<Data, Metadata, Action>> = function(data: unknown?, keyInfo: DataStoreKeyInfo?)
         if typeof(data) ~= "table" then
             data = {}
-            Debug:warn("Document data was not a table, initializing to empty table")
+            Debug:debug("Document data was not a table, initializing to empty table")
         end
 
         local inner, metadata = loadTransform((data :: any).data, keyInfo)
@@ -112,7 +112,7 @@ function Document.get<Data, Metadata, Action>(self: Document<Data, Metadata, Act
         result.mailroom.transaction = nil
         if resolved then
             local patchResult = patch(result, self.reducer, txInfo.actions)
-            Debug:verbose(`Document.get transaction {txInfo.id} patch result: {patchResult}`)
+            Debug:debug(`Document.get transaction {txInfo.id} patch result: {patchResult}`)
             if not patchResult.success then
                 error("Transaction failed to apply")
             end
@@ -143,7 +143,7 @@ function Document.patch<Data, Metadata, Action>(
             if oldTransactionResolved then
                 Debug:info(`Document.patch transaction {txInfo.id} already resolved, applying patch`)
                 local transactionPatch = patch(data, self.reducer, txInfo.actions)
-                Debug:verbose(`Document.patch transaction {txInfo.id} patch result: {transactionPatch}`)
+                Debug:debug(`Document.patch transaction {txInfo.id} patch result: {transactionPatch}`)
                 assert(transactionPatch.success, "Old transaction failed to apply")
                 data = transactionPatch.data
             end
@@ -152,7 +152,7 @@ function Document.patch<Data, Metadata, Action>(
         if newTransactionInfo then
             Debug:info(`Document.patch for {self} applying new transaction {newTransactionInfo.id}`)
             local result = patch(data, self.reducer, newTransactionInfo.actions)
-            Debug:verbose(`Document.patch new transaction {newTransactionInfo.id} patch result: {result}`)
+            Debug:debug(`Document.patch new transaction {newTransactionInfo.id} patch result: {result}`)
             if not result.success then
                 error("New transaction failed to apply")
             end
@@ -173,7 +173,9 @@ function Document.patch<Data, Metadata, Action>(
         return (self:patch(actions, txInfo.id, resolved, newTransactionInfo))
     end
 
-    (patchResult :: any).data = data
+    Debug:debug("Document.patch for", self, "patch result:", patchResult)
+
+    ;(patchResult :: any).data = data
     return patchResult
 end
 
