@@ -18,6 +18,7 @@ export type TransactionInfo<Action> = {
 
 export type TransactionManager = typeof(setmetatable(
     {} :: {
+        cache: {[string]: {any}},
     },
     TransactionManager
 ))
@@ -31,7 +32,7 @@ function TransactionManager.new(): TransactionManager
     return self
 end
 
-function TransactionManager:forceCheckResolved(info: TransactionInfo<unknown>): boolean
+function TransactionManager.forceCheckResolved(self: TransactionManager,info: TransactionInfo<unknown>): boolean
     local fails = 0
     repeat
         local success, result, keyInfo = pcall(function()
@@ -63,29 +64,29 @@ function TransactionManager:forceCheckResolved(info: TransactionInfo<unknown>): 
     until false
 end
 
-function TransactionManager:checkResolved(info: TransactionInfo<unknown>): boolean
-    local key = string.sub(info.id, 1, 2)
-    local cached = self.cache[key]
-    if cached and cached[1] == info.id then
-        return cached[2]
+function TransactionManager.checkResolved(self: TransactionManager, info: TransactionInfo<unknown>): boolean
+    local cached = self:checkResolvedCache(info.id)
+    if cached ~= nil then
+        return cached
     end
 
+    local key = string.sub(info.id, 1, 2)
     local newValue = self:forceCheckResolved(info)
     self.cache[key] = {info.id, newValue}
     return newValue
 end
 
-function TransactionManager:checkResolvedCache(info: TransactionInfo<unknown>): boolean
-    local key = string.sub(info.id, 1, 2)
+function TransactionManager.checkResolvedCache(self: TransactionManager, id: string): boolean?
+    local key = string.sub(id, 1, 2)
     local cached = self.cache[key]
-    if cached and cached[1] == info.id then
+    if cached and cached[1] == id then
         return cached[2]
     end
 
     return nil
 end
 
-function TransactionManager:forceMarkResolved(id: string, failsAfter: number, timeoutAfter: number, status: boolean): boolean
+function TransactionManager.forceMarkResolved(self: TransactionManager, id: string, failsAfter: number, timeoutAfter: number, status: boolean): boolean
     if status == false then return false end
 
     local now = DateTime.now().UnixTimestampMillis
@@ -100,13 +101,13 @@ function TransactionManager:forceMarkResolved(id: string, failsAfter: number, ti
     return not (keyInfo.UpdatedTime > failsAfter)
 end
 
-function TransactionManager:markResolved(id: string, failsAfter: number, timeoutAfter: number, status: boolean): boolean
-    local key = string.sub(id, 1, 2)
-    local cached = self.cache[key]
-    if cached and cached[1] == id then
-        return cached[2]
+function TransactionManager.markResolved(self: TransactionManager, id: string, failsAfter: number, timeoutAfter: number, status: boolean): boolean
+    local cached = self:checkResolvedCache(id)
+    if cached ~= nil then
+        return cached
     end
     
+    local key = string.sub(id, 1, 2)
     local newValue = self:forceMarkResolved(id, failsAfter, timeoutAfter, status)
     self.cache[key] = {id, newValue}
     return newValue

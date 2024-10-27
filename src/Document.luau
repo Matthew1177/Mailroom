@@ -138,7 +138,7 @@ function Document.patch<Data, Metadata, Action>(
             if txInfo.id ~= oldTransactionId then
                 -- check the cache to see if we know if this transaction is resolved
                 -- since we don't know if it's resolved
-                local isResolved = self.transactionManager:checkResolvedCache(txInfo)
+                local isResolved = self.transactionManager:checkResolvedCache(txInfo.id)
                 if isResolved == nil then
                     Debug:info("Document.patch transaction", txInfo.id, "resolution unknown, skipping")
                     return nil
@@ -159,6 +159,8 @@ function Document.patch<Data, Metadata, Action>(
             end
         end
 
+        -- TODO: transaction should also fail if the patch fails
+        -- and saving should occur even if this transaction fails below
         if newTransactionInfo then
             Debug:info("Document.patch for", self, "applying new transaction", newTransactionInfo.id)
             local result = patch(data, self.reducer, newTransactionInfo.actions)
