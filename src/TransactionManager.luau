@@ -26,10 +26,12 @@ function TransactionManager.new(): TransactionManager
     local self = setmetatable({
     }, TransactionManager)
 
+    self.cache = {}
+
     return self
 end
 
-function TransactionManager:checkResolved(info: TransactionInfo<unknown>): boolean
+function TransactionManager:forceCheckResolved(info: TransactionInfo<unknown>): boolean
     local fails = 0
     repeat
         local success, result, keyInfo = pcall(function()
@@ -61,7 +63,29 @@ function TransactionManager:checkResolved(info: TransactionInfo<unknown>): boole
     until false
 end
 
-function TransactionManager:markResolved(id: string, failsAfter: number, timeoutAfter: number, status: boolean): boolean
+function TransactionManager:checkResolved(info: TransactionInfo<unknown>): boolean
+    local key = string.sub(info.id, 1, 2)
+    local cached = self.cache[key]
+    if cached and cached[1] == info.id then
+        return cached[2]
+    end
+
+    local newValue = self:forceCheckResolved(info)
+    self.cache[key] = {info.id, newValue}
+    return newValue
+end
+
+function TransactionManager:checkResolvedCache(info: TransactionInfo<unknown>): boolean
+    local key = string.sub(info.id, 1, 2)
+    local cached = self.cache[key]
+    if cached and cached[1] == info.id then
+        return cached[2]
+    end
+
+    return nil
+end
+
+function TransactionManager:forceMarkResolved(id: string, failsAfter: number, timeoutAfter: number, status: boolean): boolean
     if status == false then return false end
 
     local now = DateTime.now().UnixTimestampMillis
@@ -74,6 +98,18 @@ function TransactionManager:markResolved(id: string, failsAfter: number, timeout
     end)
 
     return not (keyInfo.UpdatedTime > failsAfter)
+end
+
+function TransactionManager:markResolved(id: string, failsAfter: number, timeoutAfter: number, status: boolean): boolean
+    local key = string.sub(id, 1, 2)
+    local cached = self.cache[key]
+    if cached and cached[1] == id then
+        return cached[2]
+    end
+    
+    local newValue = self:forceMarkResolved(id, failsAfter, timeoutAfter, status)
+    self.cache[key] = {id, newValue}
+    return newValue
 end
 
 return TransactionManager
