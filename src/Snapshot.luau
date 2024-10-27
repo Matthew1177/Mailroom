@@ -99,7 +99,7 @@ end
 function Snapshot._sync<Data,Metadata,Action>(
     self: Snapshot<Data,Metadata,Action>,
     newTransactionInfo: TransactionManager.TransactionInfo<Action>?
-)
+): patch.PatchResult<Document.DocumentData<Data,Metadata,Action>, Action>
     local actions = table.clone(self.actions)
     local result: patch.PatchResult<Document.DocumentData<Data,Metadata,Action>, Action> = (self.parent :: any):patch(actions)
 
@@ -122,6 +122,10 @@ function Snapshot._sync<Data,Metadata,Action>(
 
     if self.updateCallback then
         task.spawn(self.updateCallback)
+    end
+
+    if not newResult.success then
+        return newResult
     end
 
     return result
