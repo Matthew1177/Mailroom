@@ -131,7 +131,8 @@ function Document.patch<Data, Metadata, Action>(
 ): patch.PatchResult<DocumentData<Data, Metadata, Action>, Action>
     local patchResult: patch.PatchResult<DocumentData<Data, Metadata, Action>, Action>
     local data = self.file:update(function(data: DocumentData<Data, Metadata, Action>): DocumentData<Data, Metadata, Action>?
-        local txInfo = data.mailroom.transaction
+        local internal = table.clone(data.mailroom)
+        local txInfo = internal.transaction
         if txInfo then
             Debug:info(`Document.patch for {self} found transaction {txInfo.id}`)
             if txInfo.id ~= oldTransactionId then
@@ -139,7 +140,7 @@ function Document.patch<Data, Metadata, Action>(
                 return nil
             end
 
-            data.mailroom.transaction = nil
+            internal.transaction = nil
             if oldTransactionResolved then
                 Debug:info(`Document.patch transaction {txInfo.id} already resolved, applying patch`)
                 local transactionPatch = patch(data, self.reducer, txInfo.actions)
@@ -156,8 +157,11 @@ function Document.patch<Data, Metadata, Action>(
             if not result.success then
                 error("New transaction failed to apply")
             end
-            data.mailroom.transaction = newTransactionInfo
+            internal.transaction = newTransactionInfo
         end
+
+        data = table.clone(data)
+        data.mailroom = internal
 
         patchResult = patch(data, self.reducer, actions)
         return patchResult.data

@@ -69,11 +69,11 @@ function TransactionManager:markResolved(id: string, failsAfter: number, timeout
         return false
     end
 
-   local _,keyInfo = TransactionDataStore:UpdateAsync(id, function()
+    local _,keyInfo = TransactionDataStore:UpdateAsync(id, function()
         return true, nil, nil
-   end)
+    end)
 
-    return keyInfo.UpdatedTime > failsAfter
+    return not (keyInfo.UpdatedTime > failsAfter)
 end
 
 return TransactionManager

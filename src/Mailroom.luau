@@ -113,9 +113,10 @@ function Mailroom._runTransaction(
     return didResolve
 end
 
+-- TODO: type correctly
 function Mailroom.runTransaction(
     self: Mailroom,
-    actionsMap: {[Snapshot.Snapshot<any, any, any> | Document.Document<any, any, any>]: {any}}
+    actionsMap: any
 ): boolean
     for snapshotOrDocument in actionsMap do
         assert(snapshotOrDocument._type == "Document" 
