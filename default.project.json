@@ -9,15 +9,6 @@
           "Mailroom": {
             "$path": "src"
           }
-        },
-        "DevPackages": {
-          "$path": "DevPackages"
-        }
-      },
-  
-      "ServerScriptService": {
-        "testRunner": {
-          "$path": "test/testRunner.server.luau"
         }
       }
     }
