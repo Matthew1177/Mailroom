@@ -3,6 +3,8 @@ local Lock = require(script.Parent.Lock)
 local patch = require(script.Parent.patch)
 local TransactionManager = require(script.Parent.TransactionManager)
 
+local deepFreeze = require(script.Parent.deepFreeze)
+
 local Snapshot = {}
 Snapshot.__index = Snapshot
 Snapshot._type = "Snapshot" :: "Snapshot"
@@ -27,6 +29,8 @@ function Snapshot.new<Data,Metadata,Action>(
     data: Document.DocumentData<Data,Metadata,Action>,
     updateCallback: () -> ()?
 ): Snapshot<Data,Metadata,Action>
+    deepFreeze(data)
+
     local self = setmetatable({
         parent = parent,
         head = data,
@@ -47,11 +51,11 @@ end
 function Snapshot.get<Data,Metadata,Action>(
     self: Snapshot<Data,Metadata,Action>
 ): Document.BaseDocumentData<Data,Metadata>
-    return {
+    return table.freeze({
         data = self.head.data,
         metadata = self.head.metadata,
         userIds = self.head.userIds,
-    }
+    })
 end
 
 function Snapshot.dispatch<Data,Metadata,Action>(
@@ -102,19 +106,19 @@ function Snapshot._sync<Data,Metadata,Action>(
     -- reapply actions
     local newActions
     if result.success then
+        -- if the patch was successful, we can remove all actions that we patched
         newActions = {unpack(self.actions, #actions)}
     else
-        newActions = {unpack(self.actions, result.index)}
+        -- if the patch was not successful, we discard all actions that were not applied
+        -- including those after :sync was called
+        newActions = {}
     end
 
-    local newHead = result.data
-    for _, action in ipairs(newActions) do
-        newHead = self.reducer(newHead, action)
-    end
+    local newResult = patch(result.data, self.reducer, newActions)
 
     self.base = result.data
-    self.head = newHead
-    self.actions = newActions
+    self.head = newResult.data
+    self.actions = {unpack(newActions, 1, if newResult.success then nil else newResult.index - 1)}
 
     if self.updateCallback then
         task.spawn(self.updateCallback)

@@ -1,3 +1,5 @@
+local deepFreeze = require(script.Parent.deepFreeze)
+
 export type Reducer<Data, Action> = (data: Data, action: Action) -> Data
 
 export type PatchResultSuccess<Data, Action> = {
@@ -20,7 +22,7 @@ local function patch<Data, Action>(
     reducer: Reducer<Data, Action>,
     actions: {Action}
 ): PatchResult<Data, Action>
-    local head = data
+    local head = deepFreeze(data)
     for i, action in actions do
         local success, result = pcall(reducer, head, action)
         if not success then
@@ -32,12 +34,12 @@ local function patch<Data, Action>(
                 index = i,
             }
         end
-        head = result
+        head = deepFreeze(result)
     end
 
     return {
         success = true,
-        data = head
+        data = deepFreeze(head)
     }
 end
 
