@@ -197,12 +197,16 @@ end
 
 function Mailroom.createSnapshot<Data, Metadata, Action>(
     self: Mailroom,
-    parent: Document.Document<Data, Metadata, Action> | Snapshot.Snapshot<Data, Metadata, Action>
+    parent: Document.Document<Data, Metadata, Action> | Snapshot.Snapshot<Data, Metadata, Action>,
+    options: {
+        updateCallback: () -> ()?,
+    }?
 ): Snapshot.Snapshot<Data, Metadata, Action>
+    local updateCallback = options and options.updateCallback or nil
     if parent._type == "Document" then
-        return Snapshot.new(parent, (parent :: Document.Document<Data, Metadata, Action>).file:get())
+        return Snapshot.new(parent, (parent :: Document.Document<Data, Metadata, Action>).file:get(), updateCallback)
     else
-        return Snapshot.new(parent, (parent :: Snapshot.Snapshot<Data, Metadata, Action>).head)
+        return Snapshot.new(parent, (parent :: Snapshot.Snapshot<Data, Metadata, Action>).head, updateCallback)
     end
 end
 

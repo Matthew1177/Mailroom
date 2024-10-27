@@ -17,22 +17,41 @@ export type Snapshot<Data,Metadata,Action> = typeof(setmetatable(
         actions: {Action},
         reducer: Document.InternalReducer<Data,Metadata,Action>,
         lock: Lock.Lock,
+        updateCallback: () -> ()?,
     },
     Snapshot
 ))
 
 function Snapshot.new<Data,Metadata,Action>(
     parent: SnapshotParent<Data,Metadata,Action>,
-    data: Document.DocumentData<Data,Metadata,Action>
+    data: Document.DocumentData<Data,Metadata,Action>,
+    updateCallback: () -> ()?
 ): Snapshot<Data,Metadata,Action>
-    return setmetatable({
+    local self = setmetatable({
         parent = parent,
         head = data,
         base = data,
         actions = {},
         reducer = parent.reducer,
         lock = Lock.new(),
+        updateCallback = updateCallback,
     }, Snapshot)
+
+    if self.updateCallback then
+        task.spawn(self.updateCallback)
+    end
+
+    return self
+end
+
+function Snapshot.get<Data,Metadata,Action>(
+    self: Snapshot<Data,Metadata,Action>
+): Document.BaseDocumentData<Data,Metadata>
+    return {
+        data = self.head.data,
+        metadata = self.head.metadata,
+        userIds = self.head.userIds,
+    }
 end
 
 function Snapshot.dispatch<Data,Metadata,Action>(
@@ -44,6 +63,10 @@ function Snapshot.dispatch<Data,Metadata,Action>(
     if result.success then
         self.head = result.data
         table.insert(self.actions, action)
+
+        if self.updateCallback then
+            task.spawn(self.updateCallback)
+        end
     end
 
     return result
@@ -60,6 +83,10 @@ function Snapshot.patch<Data,Metadata,Action>(
     for i, action in actions do
         if not result.success and i >= result.index then break end
         table.insert(self.actions, action)
+    end
+
+    if (result.success or result.index ~= 1) and self.updateCallback then
+        task.spawn(self.updateCallback)
     end
 
     return result
@@ -88,6 +115,10 @@ function Snapshot._sync<Data,Metadata,Action>(
     self.base = result.data
     self.head = newHead
     self.actions = newActions
+
+    if self.updateCallback then
+        task.spawn(self.updateCallback)
+    end
 
     return result
 end
