@@ -101,10 +101,15 @@ function Mailroom._runTransaction(
                 local newBase = tResult.data
                 ;(snapshotOrDocument :: any).base = newBase
                 local result = patch(newBase, snapshotOrDocument.reducer, (snapshotOrDocument :: any).actions)
-                ;(snapshotOrDocument :: any).head = result.data
+                -- remove .transaction
+                local data = table.clone(result.data)
+                local internal = table.clone(data.mailroom)
+                internal.transaction = nil
+                data.mailroom = internal
+                ;(snapshotOrDocument :: any).head = data
                 -- remove any actions that were not applied
                 if not result.success then
-                    (snapshotOrDocument :: any).actions = {unpack((snapshotOrDocument :: any).actions, result.index)}
+                    (snapshotOrDocument :: any).actions = {unpack((snapshotOrDocument :: any).actions, 1, result.index - 1)}
                 end
             end
         end
@@ -205,7 +210,7 @@ function Mailroom.createSnapshot<Data, Metadata, Action>(
 ): Snapshot.Snapshot<Data, Metadata, Action>
     local updateCallback = options and options.updateCallback or nil
     if parent._type == "Document" then
-        return Snapshot.new(parent, (parent :: Document.Document<Data, Metadata, Action>).file:get(), updateCallback)
+        return Snapshot.new(parent, (parent :: Document.Document<Data, Metadata, Action>):get(), updateCallback)
     else
         return Snapshot.new(parent, (parent :: Snapshot.Snapshot<Data, Metadata, Action>).head, updateCallback)
     end

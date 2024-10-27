@@ -106,13 +106,13 @@ function Document.get<Data, Metadata, Action>(self: Document<Data, Metadata, Act
     local result = self.file:get()
     local txInfo = result.mailroom.transaction
     if txInfo then
-        Debug:info(`Document.get for {self.file.key} found transaction {txInfo.id}`)
+        Debug:info("Document.get for", self.file.key, "found transaction", {txInfo.id})
         local resolved = self.transactionManager:checkResolved(txInfo)
-        Debug:info(`Document.get transaction {txInfo.id} resolved: {resolved}`)
+        Debug:info("Document.get transaction", txInfo.id, "resolved:", resolved)
         result.mailroom.transaction = nil
         if resolved then
             local patchResult = patch(result, self.reducer, txInfo.actions)
-            Debug:debug(`Document.get transaction {txInfo.id} patch result: {patchResult}`)
+            Debug:debug("Document.get transaction", txInfo.id, "patch result:", patchResult)
             if not patchResult.success then
                 error("Transaction failed to apply")
             end
@@ -134,26 +134,26 @@ function Document.patch<Data, Metadata, Action>(
         local internal = table.clone(data.mailroom)
         local txInfo = internal.transaction
         if txInfo then
-            Debug:info(`Document.patch for {self} found transaction {txInfo.id}`)
+            Debug:info("Document.patch for", self, "found transaction", txInfo.id)
             if txInfo.id ~= oldTransactionId then
-                Debug:info(`Document.patch transaction {txInfo.id} resolution unknown, skipping`)
+                Debug:info("Document.patch transaction", txInfo.id, "resolution unknown, skipping")
                 return nil
             end
 
             internal.transaction = nil
             if oldTransactionResolved then
-                Debug:info(`Document.patch transaction {txInfo.id} already resolved, applying patch`)
+                Debug:info("Document.patch transaction", txInfo.id, "already resolved, applying patch")
                 local transactionPatch = patch(data, self.reducer, txInfo.actions)
-                Debug:debug(`Document.patch transaction {txInfo.id} patch result: {transactionPatch}`)
+                Debug:debug("Document.patch transaction", txInfo.id, "patch result:", transactionPatch)
                 assert(transactionPatch.success, "Old transaction failed to apply")
-                data = transactionPatch.data
+                data = transactionPatch.data                
             end
         end
 
         if newTransactionInfo then
-            Debug:info(`Document.patch for {self} applying new transaction {newTransactionInfo.id}`)
+            Debug:info("Document.patch for", self, "applying new transaction", newTransactionInfo.id)
             local result = patch(data, self.reducer, newTransactionInfo.actions)
-            Debug:debug(`Document.patch new transaction {newTransactionInfo.id} patch result: {result}`)
+            Debug:debug("Document.patch new transaction", newTransactionInfo.id, "patch result:", result)
             if not result.success then
                 error("New transaction failed to apply")
             end
@@ -172,7 +172,7 @@ function Document.patch<Data, Metadata, Action>(
     local txInfo = data.mailroom.transaction
     if txInfo and (newTransactionInfo == nil or newTransactionInfo.id ~= txInfo.id) then
         -- we must resolve this
-        Debug:info(`Document.patch for {self} found transaction {txInfo.id}`)
+        Debug:info("Document.patch for", self, "found transaction", txInfo.id)
         local resolved = self.transactionManager:checkResolved(txInfo)
         return (self:patch(actions, txInfo.id, resolved, newTransactionInfo))
     end

@@ -104,7 +104,7 @@ function Snapshot._sync<Data,Metadata,Action>(
     local result: patch.PatchResult<Document.DocumentData<Data,Metadata,Action>, Action> 
     if newTransactionInfo then
         assert(self.parent._type == "Document", "Cannot run a transaction on a snapshot that does not have a document as parent")
-        result = (self.parent :: Document.Document<Data,Metadata,Action>):patch(newTransactionInfo.actions, nil, nil, newTransactionInfo)
+        result = (self.parent :: Document.Document<Data,Metadata,Action>):patch(actions, nil, nil, newTransactionInfo)
     else
         result = (self.parent :: any):patch(actions)
     end
