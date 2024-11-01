@@ -99,14 +99,15 @@ end
 function Snapshot._sync<Data,Metadata,Action>(
     self: Snapshot<Data,Metadata,Action>,
     newTransactionInfo: TransactionManager.TransactionInfo<Action>?
-): patch.PatchResult<Document.DocumentData<Data,Metadata,Action>, Action>
+): (patch.PatchResult<Document.DocumentData<Data,Metadata,Action>, Action>, boolean?)
     local actions = table.clone(self.actions)
-    local result: patch.PatchResult<Document.DocumentData<Data,Metadata,Action>, Action> 
+    local result: patch.PatchResult<Document.DocumentData<Data,Metadata,Action>, Action>
+    local didTransactionSucceed: boolean?
     if newTransactionInfo then
         assert(self.parent._type == "Document", "Cannot run a transaction on a snapshot that does not have a document as parent")
-        result = (self.parent :: Document.Document<Data,Metadata,Action>):patch(actions, nil, nil, newTransactionInfo)
+        result, didTransactionSucceed = (self.parent :: Document.Document<Data,Metadata,Action>):patch(actions, nil, nil, newTransactionInfo)
     else
-        result = (self.parent :: any):patch(actions)
+        result, didTransactionSucceed = (self.parent :: Snapshot<Data,Metadata,Action>):patch(actions)
     end
 
     -- reapply actions
@@ -131,10 +132,10 @@ function Snapshot._sync<Data,Metadata,Action>(
     end
 
     if not newResult.success then
-        return newResult
+        return newResult, didTransactionSucceed
     end
 
-    return result
+    return result, didTransactionSucceed
 end
 
 function Snapshot.sync<Data,Metadata,Action>(

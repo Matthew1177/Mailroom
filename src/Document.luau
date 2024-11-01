@@ -128,8 +128,9 @@ function Document.patch<Data, Metadata, Action>(
     oldTransactionId: string?,
     oldTransactionResolved: boolean?,
     newTransactionInfo: TransactionManager.TransactionInfo<Action>?
-): patch.PatchResult<DocumentData<Data, Metadata, Action>, Action>
+): (patch.PatchResult<DocumentData<Data, Metadata, Action>, Action>, boolean?)
     local patchResult: patch.PatchResult<DocumentData<Data, Metadata, Action>, Action>
+    local newTransactionSucceeded: boolean? = nil
     local data = self.file:update(function(data: DocumentData<Data, Metadata, Action>): DocumentData<Data, Metadata, Action>?
         local internal = table.clone(data.mailroom)
         local txInfo = internal.transaction
@@ -154,28 +155,39 @@ function Document.patch<Data, Metadata, Action>(
                 Debug:info("Document.patch transaction", txInfo.id, "already resolved, applying patch")
                 local transactionPatch = patch(data, self.reducer, txInfo.actions)
                 Debug:debug("Document.patch transaction", txInfo.id, "patch result:", transactionPatch)
-                assert(transactionPatch.success, "Old transaction failed to apply")
+                if not transactionPatch.success then
+                    warn("Failed to apply transaction patch; " ..
+                        "the reducer may have side effects or have changed since the transaction was created for", self)
+                    -- we can't fully apply the transaction, so we'll just apply as much as we can
+                    -- this isn't ideal, but it's better than forcing the document to remain in an
+                    -- invalid state
+                end
                 data = transactionPatch.data                
             end
         end
 
-        -- TODO: transaction should also fail if the patch fails
-        -- and saving should occur even if this transaction fails below
-        if newTransactionInfo then
+        data = table.clone(data)
+        data.mailroom = internal
+        patchResult = patch(data, self.reducer, actions)
+
+        data = table.clone(patchResult.data)
+        internal = table.clone(data.mailroom)
+
+        if newTransactionInfo and patchResult.success then
             Debug:info("Document.patch for", self, "applying new transaction", newTransactionInfo.id)
             local result = patch(data, self.reducer, newTransactionInfo.actions)
             Debug:debug("Document.patch new transaction", newTransactionInfo.id, "patch result:", result)
-            if not result.success then
-                error("New transaction failed to apply " .. tostring(result.error))
+            if result.success then
+                newTransactionSucceeded = true
+                internal.transaction = newTransactionInfo
+            else
+                newTransactionSucceeded = false
             end
-            internal.transaction = newTransactionInfo
         end
 
-        data = table.clone(data)
         data.mailroom = internal
 
-        patchResult = patch(data, self.reducer, actions)
-        return patchResult.data
+        return data
     end)
 
     assert(data ~= nil) -- for type checker
@@ -191,7 +203,7 @@ function Document.patch<Data, Metadata, Action>(
     Debug:debug("Document.patch for", self, "patch result:", patchResult)
 
     ;(patchResult :: any).data = data
-    return patchResult
+    return patchResult, newTransactionSucceeded
 end
 
 function Document.__tostring(self: Document<any, any, any>): string

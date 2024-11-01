@@ -53,11 +53,12 @@ function Mailroom._runTransaction(
                 timeoutAfter = timeoutAfter,
                 actions = actions,
             }
+            local _, didTransactionSucceed: boolean? = nil
             local success, message = (pcall :: any)(function()
                 if snapshotOrDocument._type == "Document" then
-                    (snapshotOrDocument :: Document.Document<any, any, any>):patch({}, nil, nil, txInfo)
+                    _, didTransactionSucceed = (snapshotOrDocument :: Document.Document<any, any, any>):patch({}, nil, nil, txInfo)
                 else
-                    (snapshotOrDocument :: Snapshot.Snapshot<any, any, any>):_sync(txInfo)
+                    _, didTransactionSucceed = (snapshotOrDocument :: Snapshot.Snapshot<any, any, any>):_sync(txInfo)
                 end
             end)
 
@@ -65,8 +66,8 @@ function Mailroom._runTransaction(
                 return
             end
 
-            if not success then -- transaction failed
-                Debug:debug("Mailroom._runTransaction transaction failed with message", message)
+            if not success or not didTransactionSucceed then -- transaction failed
+                Debug:debug("Mailroom._runTransaction transaction failed")
                 resolved = false
                 task.defer(mainThread)
                 return
