@@ -170,7 +170,6 @@ function Document.patch<Data, Metadata, Action>(
         data.mailroom = internal
         patchResult = patch(data, self.reducer, actions)
 
-        data = table.clone(patchResult.data)
         internal = table.clone(data.mailroom)
 
         if newTransactionInfo and patchResult.success then
@@ -185,6 +184,7 @@ function Document.patch<Data, Metadata, Action>(
             end
         end
 
+        data = table.clone(patchResult.data)
         data.mailroom = internal
 
         return data

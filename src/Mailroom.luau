@@ -66,7 +66,14 @@ function Mailroom._runTransaction(
                 return
             end
 
-            if not success or not didTransactionSucceed then -- transaction failed
+            if not success then -- transaction failed
+                Debug:debug("Mailroom._runTransaction transaction errored", message)
+                resolved = false
+                task.defer(mainThread)
+                return
+            end
+
+            if not didTransactionSucceed then
                 Debug:debug("Mailroom._runTransaction transaction failed")
                 resolved = false
                 task.defer(mainThread)
