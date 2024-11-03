@@ -32,7 +32,7 @@ function TransactionManager.new(): TransactionManager
     return self
 end
 
-function TransactionManager.forceCheckResolved(self: TransactionManager,info: TransactionInfo<unknown>): boolean
+function TransactionManager.forceCheckResolved(self: TransactionManager, info: TransactionInfo<unknown>): boolean
     local fails = 0
     repeat
         local success, result, keyInfo = pcall(function()

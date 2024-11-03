@@ -114,7 +114,8 @@ function Document.get<Data, Metadata, Action>(self: Document<Data, Metadata, Act
             local patchResult = patch(result, self.reducer, txInfo.actions)
             Debug:debug("Document.get transaction", txInfo.id, "patch result:", patchResult)
             if not patchResult.success then
-                error("Transaction failed to apply")
+                warn("Failed to apply transaction patch; " ..
+                    "the reducer may have side effects or have changed since the transaction was created for", self)
             end
             return patchResult.data
         end
@@ -124,7 +125,7 @@ end
 
 function Document.patch<Data, Metadata, Action>(
     self: Document<Data, Metadata, Action>,
-    actions: {Action},
+    actions: {{Action}},
     oldTransactionId: string?,
     oldTransactionResolved: boolean?,
     newTransactionInfo: TransactionManager.TransactionInfo<Action>?

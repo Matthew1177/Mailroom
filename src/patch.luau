@@ -12,6 +12,7 @@ export type PatchResultFailure<Data, Action> = {
     data: Data,
     error: unknown,
     action: Action,
+    actionGroup: {Action},
     index: number,
 }
 
@@ -20,21 +21,28 @@ export type PatchResult<Data, Action> = PatchResultSuccess<Data, Action> | Patch
 local function patch<Data, Action>(
     data: Data,
     reducer: Reducer<Data, Action>,
-    actions: {Action}
+    actions: {{Action}}
 ): PatchResult<Data, Action>
     local head = deepFreeze(data)
-    for i, action in actions do
-        local success, result = pcall(reducer, head, action)
-        if not success then
-            return {
-                success = false,
-                data = head,
-                error = result,
-                action = action,
-                index = i,
-            }
+    for i, actionGroup in actions do
+        local newHead = head
+        for j, action in actionGroup do
+            local success, result = pcall(reducer, newHead, action)
+
+            if not success then
+                return {
+                    success = false,
+                    data = head,
+                    error = result,
+                    action = action,
+                    actionGroup = actionGroup,
+                    index = i,
+                }
+            end
+            
+            newHead = deepFreeze(result)
         end
-        head = deepFreeze(result)
+        head = newHead
     end
 
     return {

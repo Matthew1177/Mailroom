@@ -46,6 +46,9 @@ function Mailroom._runTransaction(
     local resolved = nil
     for snapshotOrDocument, actions in actionsMap do
         totalCnt += 1
+    end
+
+    for snapshotOrDocument, actions in actionsMap do
         local coro = coroutine.create(function()
             local txInfo = {
                 id = transactionId,

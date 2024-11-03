@@ -63,7 +63,7 @@ function Snapshot.dispatch<Data,Metadata,Action>(
     action: Action
 ): patch.PatchResult<Document.DocumentData<Data,Metadata,Action>, Action>
     -- apply patch
-    local result = patch(self.head, self.reducer, {action})
+    local result = patch(self.head, self.reducer, {{action}})
     if result.success then
         self.head = result.data
         table.insert(self.actions, action)
@@ -79,7 +79,7 @@ end
 -- not actually async
 function Snapshot.patch<Data,Metadata,Action>(
     self: Snapshot<Data,Metadata,Action>,
-    actions: {Action}
+    actions: {{Action}}
 ): patch.PatchResult<Document.DocumentData<Data,Metadata,Action>, Action>
     local result = patch(self.head, self.reducer, actions)
     self.head = result.data
