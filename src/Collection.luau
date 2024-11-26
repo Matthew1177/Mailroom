@@ -1,5 +1,6 @@
 local TransactionManager = require(script.Parent.TransactionManager)
 local Document = require(script.Parent.Document)
+local types = require(script.Parent.types)
 
 --[=[
     @class Collection
@@ -9,9 +10,9 @@ Collection.__index = Collection
 
 export type Collection<Data, Metadata, Action> = typeof(setmetatable({} :: {
     dataStore: DataStore,
-    loadTransform: Document.LoadTransform<Data, Metadata, Action>,
-    saveTransform: Document.SaveTransform<Data, Metadata, Action>,
-    reducer: Document.Reducer<Data, Metadata, Action>,
+    loadTransform: types.LoadTransform<Data, Metadata, Action>,
+    saveTransform: types.SaveTransform<Data, Metadata, Action>,
+    reducer: types.Reducer<Data, Metadata, Action>,
     transactionManager: TransactionManager.TransactionManager,
     documents: { [string]: Document.Document<Data, Metadata, Action>? }
 }, Collection))
@@ -22,9 +23,9 @@ local DOCUMENT_CACHE_METATABLE = {
 
 function Collection.new<Data, Metadata, Action>(
     dataStore: DataStore,
-    loadTransform: Document.LoadTransform<Data, Metadata, Action>,
-    saveTransform: Document.SaveTransform<Data, Metadata, Action>,
-    reducer: Document.Reducer<Data, Metadata, Action>,
+    loadTransform: types.LoadTransform<Data, Metadata, Action>,
+    saveTransform: types.SaveTransform<Data, Metadata, Action>,
+    reducer: types.Reducer<Data, Metadata, Action>,
     transactionManager: TransactionManager.TransactionManager
 ): Collection<Data, Metadata, Action>
     local self = setmetatable({

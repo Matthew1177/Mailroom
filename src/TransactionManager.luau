@@ -1,20 +1,12 @@
 local DataStoreService = game:GetService("DataStoreService") :: DataStoreService
 local TransactionDataStore = DataStoreService:GetDataStore("MailroomTransactions") :: DataStore
+local types = require(script.Parent.types)
 
 local NO_CACHE_OPTIONS = Instance.new("DataStoreGetOptions")
 NO_CACHE_OPTIONS.UseCache = false
 
 local TransactionManager = {}
 TransactionManager.__index = TransactionManager
-
-export type TransactionInfo<Action> = {
-    id: string,
-    -- if resolved and after failsAfter, transaction will be considered failed
-    failsAfter: number,
-    -- if not resolved after timeoutAfter, transaction will be considered failed
-    timeoutAfter: number,
-    actions: {Action}
-}
 
 export type TransactionManager = typeof(setmetatable(
     {} :: {
@@ -32,7 +24,7 @@ function TransactionManager.new(): TransactionManager
     return self
 end
 
-function TransactionManager.forceCheckResolved(self: TransactionManager, info: TransactionInfo<unknown>): boolean
+function TransactionManager.forceCheckResolved(self: TransactionManager, info: types.TransactionInfo<unknown>): boolean
     local fails = 0
     repeat
         local success, result, keyInfo = pcall(function()
@@ -64,7 +56,7 @@ function TransactionManager.forceCheckResolved(self: TransactionManager, info: T
     until false
 end
 
-function TransactionManager.checkResolved(self: TransactionManager, info: TransactionInfo<unknown>): boolean
+function TransactionManager.checkResolved(self: TransactionManager, info: types.TransactionInfo<unknown>): boolean
     local cached = self:checkResolvedCache(info.id)
     if cached ~= nil then
         return cached

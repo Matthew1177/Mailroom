@@ -1,7 +1,7 @@
 local Document = require(script.Parent.Document)
 local Lock = require(script.Parent.Lock)
 local patch = require(script.Parent.patch)
-local TransactionManager = require(script.Parent.TransactionManager)
+local types = require(script.Parent.types)
 
 local deepFreeze = require(script.Parent.deepFreeze)
 
@@ -17,8 +17,8 @@ type SnapshotParent<Data,Metadata,Action> = Snapshot<Data,Metadata,Action> | Doc
 export type Snapshot<Data,Metadata,Action> = typeof(setmetatable(
     {} :: {
         parent: SnapshotParent<Data,Metadata,Action>,
-        head: Document.DocumentData<Data,Metadata,Action>,
-        base: Document.DocumentData<Data,Metadata,Action>,
+        head: types.DocumentDataInternal<Data,Metadata,Action>,
+        base: types.DocumentDataInternal<Data,Metadata,Action>,
         actions: {Action},
         reducer: Document.InternalReducer<Data,Metadata,Action>,
         lock: Lock.Lock,
@@ -29,7 +29,7 @@ export type Snapshot<Data,Metadata,Action> = typeof(setmetatable(
 
 function Snapshot.new<Data,Metadata,Action>(
     parent: SnapshotParent<Data,Metadata,Action>,
-    data: Document.DocumentData<Data,Metadata,Action>,
+    data: types.DocumentDataInternal<Data,Metadata,Action>,
     updateCallback: () -> ()?
 ): Snapshot<Data,Metadata,Action>
     deepFreeze(data)
@@ -55,12 +55,12 @@ end
     Get the current data and metadata of the snapshot.
 
     @method get
-    @return BaseDocumentData
+    @return DocumentData
     @within Snapshot
 ]=]
 function Snapshot.get<Data,Metadata,Action>(
     self: Snapshot<Data,Metadata,Action>
-): Document.BaseDocumentData<Data,Metadata>
+): types.DocumentData<Data,Metadata>
     return table.freeze({
         data = self.head.data,
         metadata = self.head.metadata,
@@ -79,7 +79,7 @@ end
 function Snapshot.dispatch<Data,Metadata,Action>(
     self: Snapshot<Data,Metadata,Action>,
     action: Action
-): patch.PatchResult<Document.DocumentData<Data,Metadata,Action>, Action>
+): patch.PatchResult<types.DocumentDataInternal<Data,Metadata,Action>, Action>
     -- apply patch
     local result = patch(self.head, self.reducer, {{action}})
     if result.success then
@@ -98,7 +98,7 @@ end
 function Snapshot.patch<Data,Metadata,Action>(
     self: Snapshot<Data,Metadata,Action>,
     actions: {{Action}}
-): patch.PatchResult<Document.DocumentData<Data,Metadata,Action>, Action>
+): patch.PatchResult<types.DocumentDataInternal<Data,Metadata,Action>, Action>
     local result = patch(self.head, self.reducer, actions)
     self.head = result.data
 
@@ -116,10 +116,10 @@ end
 
 function Snapshot._sync<Data,Metadata,Action>(
     self: Snapshot<Data,Metadata,Action>,
-    newTransactionInfo: TransactionManager.TransactionInfo<Action>?
-): (patch.PatchResult<Document.DocumentData<Data,Metadata,Action>, Action>, boolean?)
+    newTransactionInfo: types.TransactionInfo<Action>?
+): (patch.PatchResult<types.DocumentDataInternal<Data,Metadata,Action>, Action>, boolean?)
     local actions = table.clone(self.actions)
-    local result: patch.PatchResult<Document.DocumentData<Data,Metadata,Action>, Action>
+    local result: patch.PatchResult<types.DocumentDataInternal<Data,Metadata,Action>, Action>
     local didTransactionSucceed: boolean?
     if newTransactionInfo then
         assert(self.parent._type == "Document", "Cannot run a transaction on a snapshot that does not have a document as parent")

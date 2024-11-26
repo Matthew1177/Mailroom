@@ -5,6 +5,7 @@ local Document = require(script.Parent.Document)
 local patch = require(script.Parent.patch)
 local Snapshot = require(script.Parent.Snapshot)
 local TransactionManager = require(script.Parent.TransactionManager)
+local types = require(script.Parent.types)
 
 local HttpService = game:GetService("HttpService") :: HttpService
 
@@ -215,9 +216,9 @@ end
 function Mailroom.createCollection<Data, Metadata, Action>(
     self: Mailroom,
     dataStore: DataStore,
-    loadTransform: Document.LoadTransform<Data, Metadata, Action>,
-    saveTransform: Document.SaveTransform<Data, Metadata, Action>,
-    reducer: Document.Reducer<Data, Metadata, Action>
+    loadTransform: types.LoadTransform<Data, Metadata, Action>,
+    saveTransform: types.SaveTransform<Data, Metadata, Action>,
+    reducer: types.Reducer<Data, Metadata, Action>
 ): Collection.Collection<Data, Metadata, Action>
     return Collection.new(
         dataStore,

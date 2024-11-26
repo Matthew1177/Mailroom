@@ -2,6 +2,7 @@ local File = require(script.Parent.File)
 local patch = require(script.Parent.patch)
 local TransactionManager = require(script.Parent.TransactionManager)
 local Debug = require(script.Parent.Debug)
+local types = require(script.Parent.types)
 
 --[=[
     @class Document
@@ -11,53 +12,20 @@ local Document = {}
 Document.__index = Document
 Document._type = "Document" :: "Document"
 
---[=[
-    @type LoadTransform (data: unknown?, keyInfo: DataStoreKeyInfo?) -> (Data, Metadata)
-    @within Document
-]=]
-export type LoadTransform<Data, Metadata, Action> = (data: unknown?, keyInfo: DataStoreKeyInfo?) -> (Data, Metadata)
---[=[
-    @type SaveTransform (data: Data, metadata: Metadata) -> (any, {[any]: any})
-    @within Document
-]=]
-export type SaveTransform<Data, Metadata, Action> = (data: Data, metadata: Metadata) -> (any, {[any]: any})
---[=[
-    @type Reducer (BaseDocumentData, Action) -> BaseDocumentData
-    @within Document
-]=]
-export type Reducer<Data, Metadata, Action> = (BaseDocumentData<Data, Metadata>, Action) -> BaseDocumentData<Data, Metadata>
-export type InternalReducer<Data, Metadata, Action> = patch.Reducer<DocumentData<Data, Metadata, Action>, Action>
+export type InternalReducer<Data, Metadata, Action> = patch.Reducer<types.DocumentDataInternal<Data, Metadata, Action>, Action>
 
---[=[
-    @interface BaseDocumentData
-    @field data Data
-    @field metadata Metadata
-    @field userIds {number}
-    @within Document
-]=]
-export type BaseDocumentData<Data, Metadata> = {
-    data: Data,
-    metadata: Metadata,
-    userIds: {number},
-}
-
-export type DocumentData<Data, Metadata, Action> = BaseDocumentData<Data, Metadata> & {
-    mailroom: {
-        transaction: TransactionManager.TransactionInfo<Action>?,
-    }
-}
 
 export type Document<Data, Metadata, Action> = typeof(setmetatable(
     {} :: {
-        file: File.File<DocumentData<Data, Metadata, Action>>,
+        file: File.File<types.DocumentDataInternal<Data, Metadata, Action>>,
         reducer: InternalReducer<Data, Metadata, Action>,
         transactionManager: TransactionManager.TransactionManager,
     },
     Document
 ))
 
-local function documentLoadTransformWrapper<Data, Metadata, Action>(loadTransform: LoadTransform<Data, Metadata, Action>)
-    local transform: File.LoadTransform<DocumentData<Data, Metadata, Action>> = function(data: unknown?, keyInfo: DataStoreKeyInfo?)
+local function documentLoadTransformWrapper<Data, Metadata, Action>(loadTransform: types.LoadTransform<Data, Metadata, Action>)
+    local transform: File.LoadTransform<types.DocumentDataInternal<Data, Metadata, Action>> = function(data: unknown?, keyInfo: DataStoreKeyInfo?)
         if typeof(data) ~= "table" then
             data = {}
             Debug.debug("Document data was not a table, initializing to empty table")
@@ -77,7 +45,7 @@ local function documentLoadTransformWrapper<Data, Metadata, Action>(loadTransfor
 end
 
 local function documentSaveTransformWrapper<Data, Metadata, Action>(saveTransform: (data: Data, metadata: Metadata) -> (any, {[any]: any}))
-    local transform: File.SaveTransform<DocumentData<Data, Metadata, Action>> = function(data)
+    local transform: File.SaveTransform<types.DocumentDataInternal<Data, Metadata, Action>> = function(data)
         local inner, metadata = saveTransform(data.data, data.metadata)
         return {
             data = inner,
@@ -88,13 +56,16 @@ local function documentSaveTransformWrapper<Data, Metadata, Action>(saveTransfor
     return transform
 end
 
-local function reducerWrapper<Data, Metadata, Action>(reducer: (BaseDocumentData<Data, Metadata>, Action) -> BaseDocumentData<Data, Metadata>)
-    local wrapped: InternalReducer<Data, Metadata, Action> = function(data, action)
+local function reducerWrapper<Data, Metadata, Action>(reducer: (types.DocumentData<Data, Metadata>, Action) -> types.DocumentData<Data, Metadata>)
+    local wrapped: InternalReducer<Data, Metadata, Action> = function(data: types.DocumentDataInternal<Data, Metadata, Action>, action: Action)
         local mailroom = data.mailroom
-        local newData = reducer(data, action)
+        local newData = reducer({
+            data = data.data,
+            metadata = data.metadata,
+            userIds = data.userIds,
+        }, action)
         assert(typeof(newData) == "table", "Reducer must return a table")
 
-        assert(typeof(newData.data) == "table", "Reducer must return a table with a data field")
         assert(typeof(newData.metadata) == "table", "Reducer must return a table with a metadata field")
         assert(typeof(newData.userIds) == "table", "Reducer must return a table with a userIds field")
 
@@ -112,9 +83,9 @@ end
 function Document.new<Data, Metadata, Action>(
     dataStore: DataStore,
     key: string,
-    loadTransform: LoadTransform<Data, Metadata, Action>,
-    saveTransform: SaveTransform<Data, Metadata, Action>,
-    reducer: Reducer<Data, Metadata, Action>,
+    loadTransform: types.LoadTransform<Data, Metadata, Action>,
+    saveTransform: types.SaveTransform<Data, Metadata, Action>,
+    reducer: types.Reducer<Data, Metadata, Action>,
     transactionManager: TransactionManager.TransactionManager
 ): Document<Data, Metadata, Action>
     local self = setmetatable({
@@ -125,7 +96,7 @@ function Document.new<Data, Metadata, Action>(
     return self
 end
 
-function Document.get<Data, Metadata, Action>(self: Document<Data, Metadata, Action>): DocumentData<Data, Metadata, Action>
+function Document.get<Data, Metadata, Action>(self: Document<Data, Metadata, Action>): types.DocumentDataInternal<Data, Metadata, Action>
     local result = self.file:get()
     local txInfo = result.mailroom.transaction
     if txInfo then
@@ -151,11 +122,11 @@ function Document.patch<Data, Metadata, Action>(
     actions: {{Action}},
     oldTransactionId: string?,
     oldTransactionResolved: boolean?,
-    newTransactionInfo: TransactionManager.TransactionInfo<Action>?
-): (patch.PatchResult<DocumentData<Data, Metadata, Action>, Action>, boolean?)
-    local patchResult: patch.PatchResult<DocumentData<Data, Metadata, Action>, Action>
+    newTransactionInfo: types.TransactionInfo<Action>?
+): (patch.PatchResult<types.DocumentDataInternal<Data, Metadata, Action>, Action>, boolean?)
+    local patchResult: patch.PatchResult<types.DocumentDataInternal<Data, Metadata, Action>, Action>
     local newTransactionSucceeded: boolean? = nil
-    local data = self.file:update(function(data: DocumentData<Data, Metadata, Action>): DocumentData<Data, Metadata, Action>?
+    local data = self.file:update(function(data: types.DocumentDataInternal<Data, Metadata, Action>): types.DocumentDataInternal<Data, Metadata, Action>?
         local internal = table.clone(data.mailroom)
         local txInfo = internal.transaction
         if txInfo then
