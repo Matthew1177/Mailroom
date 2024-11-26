@@ -43,7 +43,7 @@ function Mailroom._runTransaction(
     local failsAfter = DateTime.now().UnixTimestampMillis + 1000 * 10
     local timeoutAfter = failsAfter + 1000 * 2 -- 2 seconds extra
 
-    Debug:info(
+    Debug.info(
         `Mailroom._runTransaction starting transaction with info id={transactionId}, `
         .. `failsAfter={failsAfter}, timeoutAfter={timeoutAfter}`
     )
@@ -77,20 +77,20 @@ function Mailroom._runTransaction(
             end
 
             if not success then -- transaction failed
-                Debug:debug("Mailroom._runTransaction transaction errored", message)
+                Debug.debug("Mailroom._runTransaction transaction errored", message)
                 resolved = false
                 task.defer(mainThread)
                 return
             end
 
             if not didTransactionSucceed then
-                Debug:debug("Mailroom._runTransaction transaction failed")
+                Debug.debug("Mailroom._runTransaction transaction failed")
                 resolved = false
                 task.defer(mainThread)
                 return
             end
 
-            Debug:debug("Mailroom._runTransaction transaction resolved for", snapshotOrDocument)
+            Debug.debug("Mailroom._runTransaction transaction resolved for", snapshotOrDocument)
             
             resolvedCnt += 1
             if resolvedCnt >= totalCnt then
@@ -102,7 +102,7 @@ function Mailroom._runTransaction(
     end
 
     coroutine.yield()
-    Debug:info("Mailroom._runTransaction main thread resumed")
+    Debug.info("Mailroom._runTransaction main thread resumed")
 
     assert(typeof(resolved) == "boolean")
     local didResolve = self.transactionManager:markResolved(transactionId, failsAfter, timeoutAfter, resolved)
@@ -180,9 +180,9 @@ function Mailroom.runTransaction(
         end
     end
 
-    Debug:info("Mailroom.runTransaction waiting for all snapshots to lock")
+    Debug.info("Mailroom.runTransaction waiting for all snapshots to lock")
     coroutine.yield()
-    Debug:info("Mailroom.runTransaction all snapshots locked")
+    Debug.info("Mailroom.runTransaction all snapshots locked")
 
     local success, result = pcall(self._runTransaction, self, actionsMap)
     -- unlock all snapshots
@@ -192,7 +192,7 @@ function Mailroom.runTransaction(
         end
     end
 
-    Debug:info("Mailroom.runTransaction all snapshots unlocked")
+    Debug.info("Mailroom.runTransaction all snapshots unlocked")
 
     if not success then
         error(result)

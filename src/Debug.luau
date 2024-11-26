@@ -1,34 +1,24 @@
 local Debug = {}
 
-local DEBUG_ENABLED = true
+local DEBUG_ENABLED = _G.MAILROOM_DEBUG or false
 
-local function format(fn: any, msg: string)
-    return {fn, msg}
+local function noop() end
+
+local function logLevel(prefix, fn): any
+    return setmetatable({}, {
+        __call = if DEBUG_ENABLED then fn else noop,
+        __tostring = function()
+            return prefix
+        end,
+    })
 end
 
-local LOG_LEVELS = {
-    critical = format(warn, "[CRT] !"),
-    error = format(warn, "[ERR] !"),
-    warn = format(warn, "[WRN]"),
-    info = format(print, "[INF]"),
-    debug = format(print, "[DBG]"),
+local Debug = {
+    debug = logLevel("[DBG]", print),
+    info = logLevel("[INF]", print),
+    warn = logLevel("[WRN]", warn),
+    error = logLevel("[ERR]", warn),
+    critical = logLevel("[CRT]", warn),
 }
 
-local noop = function() end
-
-function Debug:__index(key: string)
-    if not DEBUG_ENABLED then return noop end
-    local logFn = LOG_LEVELS[key]
-    if logFn then
-        self.prefix = logFn[2]
-        return logFn[1]
-    end
-
-    error("Invalid log level: " .. key)
-end
-
-function Debug:__tostring()
-    return self.prefix or ""
-end
-
-return setmetatable({}, Debug) :: any
+return Debug
