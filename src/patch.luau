@@ -18,6 +18,11 @@ export type PatchResultFailure<Data, Action> = {
 
 export type PatchResult<Data, Action> = PatchResultSuccess<Data, Action> | PatchResultFailure<Data, Action>
 
+--[=[
+    @type ActionSet {Action}
+    @within Mailroom
+]=]
+
 local function patch<Data, Action>(
     data: Data,
     reducer: Reducer<Data, Action>,

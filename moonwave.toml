@@ -1,0 +1,6 @@
+classOrder = [
+    "Mailroom",
+    "Collection",
+    "Document",
+    "Snapshot",
+]

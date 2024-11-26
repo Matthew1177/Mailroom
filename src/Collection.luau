@@ -1,6 +1,9 @@
 local TransactionManager = require(script.Parent.TransactionManager)
 local Document = require(script.Parent.Document)
 
+--[=[
+    @class Collection
+]=]
 local Collection = {}
 Collection.__index = Collection
 
@@ -36,6 +39,14 @@ function Collection.new<Data, Metadata, Action>(
     return self
 end
 
+--[=[
+    Get a document from the collection.
+
+    @method get
+    @param key string
+    @return Document
+    @within Collection
+]=]
 function Collection.get<Data, Metadata, Action>(
     self: Collection<Data, Metadata, Action>,
     key: string

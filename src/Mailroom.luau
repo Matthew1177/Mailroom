@@ -8,6 +8,9 @@ local TransactionManager = require(script.Parent.TransactionManager)
 
 local HttpService = game:GetService("HttpService") :: HttpService
 
+--[=[
+    @class Mailroom
+]=]
 local Mailroom = {}
 Mailroom.__index = Mailroom
 
@@ -18,6 +21,10 @@ export type Mailroom = typeof(setmetatable(
     Mailroom
 ))
 
+--[=[
+    Construct a new Mailroom instance. In general, only one Mailroom instance should be created.
+    @return Mailroom
+]=]
 function Mailroom.new(): Mailroom
     local self = setmetatable({
         transactionManager = TransactionManager.new(),
@@ -130,6 +137,17 @@ function Mailroom._runTransaction(
 end
 
 -- TODO: type correctly
+--[=[
+    Run a transaction on a set of snapshots and documents.
+    
+    `actionsMap` is a map of snapshots or documents to an array of [ActionSet]s to run on them. The actions are applied in the order they are given.
+
+    @method runTransaction
+    @param actionsMap {ActionSet}
+    @return boolean
+    @yields
+    @within Mailroom
+]=]
 function Mailroom.runTransaction(
     self: Mailroom,
     actionsMap: any
@@ -183,6 +201,17 @@ function Mailroom.runTransaction(
     return result :: boolean
 end
 
+--[=[
+    Create a new collection.
+
+    @method createCollection
+    @param dataStore DataStore
+    @param loadTransform LoadTransform
+    @param saveTransform SaveTransform
+    @param reducer Reducer
+    @return Collection
+    @within Mailroom
+]=]
 function Mailroom.createCollection<Data, Metadata, Action>(
     self: Mailroom,
     dataStore: DataStore,
@@ -212,6 +241,16 @@ self: Mailroom, dataStore, key, loadTransform, saveTransform, reducer
     )
 end
 
+--[=[
+    Create a new snapshot with a document or another snapshot as parent.
+
+    @method createSnapshot
+    @param parent Document | Snapshot
+    @param options? {updateCallback: () -> ()?}
+    @return Snapshot
+    @yields
+    @within Mailroom
+]=]
 function Mailroom.createSnapshot<Data, Metadata, Action>(
     self: Mailroom,
     parent: Document.Document<Data, Metadata, Action> | Snapshot.Snapshot<Data, Metadata, Action>,

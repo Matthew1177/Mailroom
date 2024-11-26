@@ -3,15 +3,38 @@ local patch = require(script.Parent.patch)
 local TransactionManager = require(script.Parent.TransactionManager)
 local Debug = require(script.Parent.Debug)
 
+--[=[
+    @class Document
+    To interact with a document, a [Snapshot] must be created. This is done by calling [Mailroom:createSnapshot].
+]=]
 local Document = {}
 Document.__index = Document
 Document._type = "Document" :: "Document"
 
+--[=[
+    @type LoadTransform (data: unknown?, keyInfo: DataStoreKeyInfo?) -> (Data, Metadata)
+    @within Document
+]=]
 export type LoadTransform<Data, Metadata, Action> = (data: unknown?, keyInfo: DataStoreKeyInfo?) -> (Data, Metadata)
+--[=[
+    @type SaveTransform (data: Data, metadata: Metadata) -> (any, {[any]: any})
+    @within Document
+]=]
 export type SaveTransform<Data, Metadata, Action> = (data: Data, metadata: Metadata) -> (any, {[any]: any})
+--[=[
+    @type Reducer (BaseDocumentData, Action) -> BaseDocumentData
+    @within Document
+]=]
 export type Reducer<Data, Metadata, Action> = (BaseDocumentData<Data, Metadata>, Action) -> BaseDocumentData<Data, Metadata>
 export type InternalReducer<Data, Metadata, Action> = patch.Reducer<DocumentData<Data, Metadata, Action>, Action>
 
+--[=[
+    @interface BaseDocumentData
+    @field data Data
+    @field metadata Metadata
+    @field userIds {number}
+    @within Document
+]=]
 export type BaseDocumentData<Data, Metadata> = {
     data: Data,
     metadata: Metadata,

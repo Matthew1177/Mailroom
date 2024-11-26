@@ -5,6 +5,9 @@ local TransactionManager = require(script.Parent.TransactionManager)
 
 local deepFreeze = require(script.Parent.deepFreeze)
 
+--[=[
+    @class Snapshot
+]=]
 local Snapshot = {}
 Snapshot.__index = Snapshot
 Snapshot._type = "Snapshot" :: "Snapshot"
@@ -48,6 +51,13 @@ function Snapshot.new<Data,Metadata,Action>(
     return self
 end
 
+--[=[
+    Get the current data and metadata of the snapshot.
+
+    @method get
+    @return BaseDocumentData
+    @within Snapshot
+]=]
 function Snapshot.get<Data,Metadata,Action>(
     self: Snapshot<Data,Metadata,Action>
 ): Document.BaseDocumentData<Data,Metadata>
@@ -55,9 +65,17 @@ function Snapshot.get<Data,Metadata,Action>(
         data = self.head.data,
         metadata = self.head.metadata,
         userIds = self.head.userIds,
-    })
+    }) :: any
 end
 
+--[=[
+    Dispatch an action to the snapshot.
+
+    @method dispatch
+    @param action Action
+    @return PatchResult
+    @within Snapshot
+]=]
 function Snapshot.dispatch<Data,Metadata,Action>(
     self: Snapshot<Data,Metadata,Action>,
     action: Action
@@ -138,6 +156,13 @@ function Snapshot._sync<Data,Metadata,Action>(
     return result, didTransactionSucceed
 end
 
+--[=[
+    Sync the snapshot with the DataStore.
+
+    @method sync
+    @return PatchResult
+    @within Snapshot
+]=]
 function Snapshot.sync<Data,Metadata,Action>(
     self: Snapshot<Data,Metadata,Action>
 )
