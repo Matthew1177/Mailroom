@@ -37,7 +37,7 @@ end
 function Mailroom._runTransaction(
     self: Mailroom, 
     actionsMap: {[Snapshot.Snapshot<any, any, any> | Document.Document<any, any, any>]: {any}}
-): boolean
+): number
     local mainThread = coroutine.running()
 
     local transactionId = HttpService:GenerateGUID(false)
@@ -51,10 +51,12 @@ function Mailroom._runTransaction(
 
     local totalCnt = 0
     local resolvedCnt = 0
-    local resolved = nil
+    local maxActions = 0
     for snapshotOrDocument, actions in actionsMap do
         totalCnt += 1
+        maxActions = math.max(maxActions, #actions)
     end
+    local resolved = maxActions
 
     for snapshotOrDocument, actions in actionsMap do
         local coro = coroutine.create(function()
@@ -64,7 +66,7 @@ function Mailroom._runTransaction(
                 timeoutAfter = timeoutAfter,
                 actions = actions,
             }
-            local _, didTransactionSucceed: boolean? = nil
+            local _, didTransactionSucceed: number? = nil
             local success, message = (pcall :: any)(function()
                 if snapshotOrDocument._type == "Document" then
                     _, didTransactionSucceed = (snapshotOrDocument :: Document.Document<any, any, any>):patch({}, nil, nil, txInfo)
@@ -73,20 +75,31 @@ function Mailroom._runTransaction(
                 end
             end)
 
-            if resolved ~= nil then -- already resolved
+            if resolved == 0 then -- already resolved
                 return
             end
 
             if not success then -- transaction failed
                 Debug.debug("Mailroom._runTransaction transaction errored", message)
-                resolved = false
+                resolved = 0
                 task.defer(mainThread)
                 return
             end
 
-            if not didTransactionSucceed then
+            if didTransactionSucceed == nil then
+                Debug.debug("Mailroom._runTransaction transaction failed before transaction added")
+                resolved = 0
+                task.defer(mainThread)
+                return
+            end
+
+            if didTransactionSucceed < #actions and didTransactionSucceed < resolved then
+                resolved = didTransactionSucceed
+            end
+
+            if resolved == 0 then
                 Debug.debug("Mailroom._runTransaction transaction failed")
-                resolved = false
+                resolved = 0
                 task.defer(mainThread)
                 return
             end
@@ -95,7 +108,6 @@ function Mailroom._runTransaction(
             
             resolvedCnt += 1
             if resolvedCnt >= totalCnt then
-                resolved = true
                 task.defer(mainThread)
             end
         end)
@@ -105,31 +117,29 @@ function Mailroom._runTransaction(
     coroutine.yield()
     Debug.info("Mailroom._runTransaction main thread resumed")
 
-    assert(typeof(resolved) == "boolean")
     local didResolve = self.transactionManager:markResolved(transactionId, failsAfter, timeoutAfter, resolved)
 
-    if didResolve then
-        for snapshotOrDocument, actions in actionsMap do
-            if snapshotOrDocument._type == "Snapshot" then
-                local base = (snapshotOrDocument :: Snapshot.Snapshot<any, any, any>).base
-                local tResult = patch(base, snapshotOrDocument.reducer, actions)
-                if not tResult.success then
-                    -- throw error in new thread
-                    task.spawn(error, "Transaction failed to apply after resolution - reducer may have side effects")
-                end
-                local newBase = tResult.data
-                ;(snapshotOrDocument :: any).base = newBase
-                local result = patch(newBase, snapshotOrDocument.reducer, (snapshotOrDocument :: any).actions)
-                -- remove .transaction
-                local data = table.clone(result.data)
-                local internal = table.clone(data.mailroom)
-                internal.transaction = nil
-                data.mailroom = internal
-                ;(snapshotOrDocument :: any).head = data
-                -- remove any actions that were not applied
-                if not result.success then
-                    (snapshotOrDocument :: any).actions = {unpack((snapshotOrDocument :: any).actions, 1, result.index - 1)}
-                end
+    for snapshotOrDocument, actions in actionsMap do
+        if snapshotOrDocument._type == "Snapshot" then
+            local base = (snapshotOrDocument :: Snapshot.Snapshot<any, any, any>).base
+            local tResult = patch(base, snapshotOrDocument.reducer, actions, didResolve)
+            if not tResult.success then
+                -- throw error in new thread
+                task.spawn(error, "Transaction failed to apply after resolution - reducer may have side effects")
+                task.spawn(error, tResult.error)
+            end
+            local newBase = tResult.data
+            ;(snapshotOrDocument :: any).base = newBase
+            local result = patch(newBase, snapshotOrDocument.reducer, (snapshotOrDocument :: any).actions)
+            -- remove .transaction
+            local data = table.clone(result.data)
+            local internal = table.clone(data.mailroom)
+            internal.transaction = nil
+            data.mailroom = internal
+            ;(snapshotOrDocument :: any).head = data
+            -- remove any actions that were not applied
+            if not result.success then
+                (snapshotOrDocument :: any).actions = {unpack((snapshotOrDocument :: any).actions, 1, result.actionGroupIndex - 1)}
             end
         end
     end
@@ -145,14 +155,14 @@ end
 
     @method runTransaction
     @param actionsMap {ActionSet}
-    @return boolean
+    @return number
     @yields
     @within Mailroom
 ]=]
 function Mailroom.runTransaction(
     self: Mailroom,
     actionsMap: any
-): boolean
+): number
     for snapshotOrDocument in actionsMap do
         assert(snapshotOrDocument._type == "Document" 
             or (snapshotOrDocument :: any).parent._type == "Document",
@@ -199,7 +209,7 @@ function Mailroom.runTransaction(
         error(result)
     end
 
-    return result :: boolean
+    return result :: number
 end
 
 --[=[

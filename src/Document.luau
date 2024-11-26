@@ -14,7 +14,6 @@ Document._type = "Document" :: "Document"
 
 export type InternalReducer<Data, Metadata, Action> = patch.Reducer<types.DocumentDataInternal<Data, Metadata, Action>, Action>
 
-
 export type Document<Data, Metadata, Action> = typeof(setmetatable(
     {} :: {
         file: File.File<types.DocumentDataInternal<Data, Metadata, Action>>,
@@ -104,15 +103,14 @@ function Document.get<Data, Metadata, Action>(self: Document<Data, Metadata, Act
         local resolved = self.transactionManager:checkResolved(txInfo)
         Debug.info("Document.get transaction", txInfo.id, "resolved:", resolved)
         result.mailroom.transaction = nil
-        if resolved then
-            local patchResult = patch(result, self.reducer, txInfo.actions)
-            Debug.debug("Document.get transaction", txInfo.id, "patch result:", patchResult)
-            if not patchResult.success then
-                warn("Failed to apply transaction patch; " ..
-                    "the reducer may have side effects or have changed since the transaction was created for", self)
-            end
-            return patchResult.data
+
+        local patchResult = patch(result, self.reducer, txInfo.actions, resolved)
+        Debug.debug("Document.get transaction", txInfo.id, "patch result:", patchResult)
+        if not patchResult.success then
+            warn("Failed to apply transaction patch; " ..
+                "the reducer may have side effects or have changed since the transaction was created for", self)
         end
+        return patchResult.data
     end
     return result
 end
@@ -121,11 +119,11 @@ function Document.patch<Data, Metadata, Action>(
     self: Document<Data, Metadata, Action>,
     actions: {{Action}},
     oldTransactionId: string?,
-    oldTransactionResolved: boolean?,
+    oldTransactionResolved: number?,
     newTransactionInfo: types.TransactionInfo<Action>?
-): (patch.PatchResult<types.DocumentDataInternal<Data, Metadata, Action>, Action>, boolean?)
+): (patch.PatchResult<types.DocumentDataInternal<Data, Metadata, Action>, Action>, number?)
     local patchResult: patch.PatchResult<types.DocumentDataInternal<Data, Metadata, Action>, Action>
-    local newTransactionSucceeded: boolean? = nil
+    local newTransactionSucceeded: number? = nil
     local data = self.file:update(function(data: types.DocumentDataInternal<Data, Metadata, Action>): types.DocumentDataInternal<Data, Metadata, Action>?
         local internal = table.clone(data.mailroom)
         local txInfo = internal.transaction
@@ -146,19 +144,17 @@ function Document.patch<Data, Metadata, Action>(
             end
 
             internal.transaction = nil
-            if oldTransactionResolved then
-                Debug.info("Document.patch transaction", txInfo.id, "already resolved, applying patch")
-                local transactionPatch = patch(data, self.reducer, txInfo.actions)
-                Debug.debug("Document.patch transaction", txInfo.id, "patch result:", transactionPatch)
-                if not transactionPatch.success then
-                    warn("Failed to apply transaction patch; " ..
-                        "the reducer may have side effects or have changed since the transaction was created for", self)
-                    -- we can't fully apply the transaction, so we'll just apply as much as we can
-                    -- this isn't ideal, but it's better than forcing the document to remain in an
-                    -- invalid state
-                end
-                data = transactionPatch.data                
+            Debug.info("Document.patch transaction", txInfo.id, "already resolved, applying patch")
+            local transactionPatch = patch(data, self.reducer, txInfo.actions, oldTransactionResolved)
+            Debug.debug("Document.patch transaction", txInfo.id, "patch result:", transactionPatch)
+            if not transactionPatch.success then
+                warn("Failed to apply transaction patch; " ..
+                    "the reducer may have side effects or have changed since the transaction was created for", self)
+                -- we can't fully apply the transaction, so we'll just apply as much as we can
+                -- this isn't ideal, but it's better than forcing the document to remain in an
+                -- invalid state
             end
+            data = transactionPatch.data                
         end
 
         data = table.clone(data)
@@ -171,11 +167,11 @@ function Document.patch<Data, Metadata, Action>(
             Debug.info("Document.patch for", self, "applying new transaction", newTransactionInfo.id)
             local result = patch(data, self.reducer, newTransactionInfo.actions)
             Debug.debug("Document.patch new transaction", newTransactionInfo.id, "patch result:", result)
+            internal.transaction = newTransactionInfo
             if result.success then
-                newTransactionSucceeded = true
-                internal.transaction = newTransactionInfo
+                newTransactionSucceeded = #newTransactionInfo.actions
             else
-                newTransactionSucceeded = false
+                newTransactionSucceeded = result.actionGroupIndex - 1
             end
         end
 

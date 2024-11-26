@@ -103,11 +103,11 @@ function Snapshot.patch<Data,Metadata,Action>(
     self.head = result.data
 
     for i, action in actions do
-        if not result.success and i >= result.index then break end
+        if not result.success and i >= result.actionGroupIndex then break end
         table.insert(self.actions, action)
     end
 
-    if (result.success or result.index ~= 1) and self.updateCallback then
+    if (result.success or result.actionGroupIndex ~= 1) and self.updateCallback then
         task.spawn(self.updateCallback)
     end
 
@@ -117,10 +117,10 @@ end
 function Snapshot._sync<Data,Metadata,Action>(
     self: Snapshot<Data,Metadata,Action>,
     newTransactionInfo: types.TransactionInfo<Action>?
-): (patch.PatchResult<types.DocumentDataInternal<Data,Metadata,Action>, Action>, boolean?)
+): (patch.PatchResult<types.DocumentDataInternal<Data,Metadata,Action>, Action>, number?)
     local actions = table.clone(self.actions)
     local result: patch.PatchResult<types.DocumentDataInternal<Data,Metadata,Action>, Action>
-    local didTransactionSucceed: boolean?
+    local didTransactionSucceed: number?
     if newTransactionInfo then
         assert(self.parent._type == "Document", "Cannot run a transaction on a snapshot that does not have a document as parent")
         result, didTransactionSucceed = (self.parent :: Document.Document<Data,Metadata,Action>):patch(actions, nil, nil, newTransactionInfo)
@@ -143,7 +143,7 @@ function Snapshot._sync<Data,Metadata,Action>(
 
     self.base = result.data
     self.head = newResult.data
-    self.actions = {unpack(newActions, 1, if newResult.success then nil else newResult.index - 1)}
+    self.actions = {unpack(newActions, 1, if newResult.success then nil else newResult.actionGroupIndex - 1)}
 
     if self.updateCallback then
         task.spawn(self.updateCallback)
@@ -179,6 +179,10 @@ function Snapshot.sync<Data,Metadata,Action>(
     end
 
     return result
+end
+
+function Snapshot:__tostring()
+    return `Snapshot({self.parent})`
 end
 
 return Snapshot

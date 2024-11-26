@@ -1,5 +1,3 @@
-local Debug = {}
-
 local DEBUG_ENABLED = _G.MAILROOM_DEBUG or false
 
 local function noop() end

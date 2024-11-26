@@ -19,13 +19,6 @@ export type File<T> = typeof(setmetatable(
     File
 ))
 
-export type FileOptions<T> = {
-    datastore: DataStore,
-    key: string,
-    loadTransform: LoadTransform<T>,
-    saveTransform: SaveTransform<T>,
-}
-
 local NO_CACHE_OPTIONS = Instance.new("DataStoreGetOptions")
 NO_CACHE_OPTIONS.UseCache = false
 

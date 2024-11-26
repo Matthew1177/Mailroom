@@ -13,7 +13,8 @@ export type PatchResultFailure<Data, Action> = {
     error: unknown,
     action: Action,
     actionGroup: {Action},
-    index: number,
+    actionGroupIndex: number,
+    actionIndex: number,
 }
 
 export type PatchResult<Data, Action> = PatchResultSuccess<Data, Action> | PatchResultFailure<Data, Action>
@@ -26,10 +27,14 @@ export type PatchResult<Data, Action> = PatchResultSuccess<Data, Action> | Patch
 local function patch<Data, Action>(
     data: Data,
     reducer: Reducer<Data, Action>,
-    actions: {{Action}}
+    actions: {{Action}},
+    stopAfter: number?
 ): PatchResult<Data, Action>
     local head = deepFreeze(data)
     for i, actionGroup in actions do
+        if stopAfter and i > stopAfter then
+            break
+        end
         local newHead = head
         for j, action in actionGroup do
             local success, result = pcall(reducer, newHead, action)
@@ -41,7 +46,8 @@ local function patch<Data, Action>(
                     error = result,
                     action = action,
                     actionGroup = actionGroup,
-                    index = i,
+                    actionGroupIndex = i,
+                    actionIndex = j,
                 }
             end
             

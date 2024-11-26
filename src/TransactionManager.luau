@@ -19,31 +19,32 @@ function TransactionManager.new(): TransactionManager
     local self = setmetatable({
     }, TransactionManager)
 
-    self.cache = {}
+    self.cache = {} -- TODO: make LRU cache
 
     return self
 end
 
-function TransactionManager.forceCheckResolved(self: TransactionManager, info: types.TransactionInfo<unknown>): boolean
+function TransactionManager.forceCheckResolved(self: TransactionManager, info: types.TransactionInfo<unknown>): number
     local fails = 0
     repeat
-        local success, result, keyInfo = pcall(function()
+        local success: boolean, result: unknown, keyInfo: DataStoreKeyInfo = pcall(function()
             return TransactionDataStore:GetAsync(info.id, NO_CACHE_OPTIONS)
         end)
 
         local now = DateTime.now().UnixTimestampMillis
         if success then
+            assert(typeof(result) == "number" or typeof(result) == "nil")
             if result == nil then
                 if now > info.timeoutAfter then
-                    return false
+                    return 0
                 end
-            elseif result == true then
+            elseif result == 0 then
+                return 0
+            else
                 if keyInfo.UpdatedTime > info.failsAfter then
-                    return false
+                    return 0
                 end
-                return true
-            elseif result == false then
-                return false
+                return result
             end
         else
             fails += 1
@@ -56,7 +57,7 @@ function TransactionManager.forceCheckResolved(self: TransactionManager, info: t
     until false
 end
 
-function TransactionManager.checkResolved(self: TransactionManager, info: types.TransactionInfo<unknown>): boolean
+function TransactionManager.checkResolved(self: TransactionManager, info: types.TransactionInfo<unknown>): number
     local cached = self:checkResolvedCache(info.id)
     if cached ~= nil then
         return cached
@@ -68,7 +69,7 @@ function TransactionManager.checkResolved(self: TransactionManager, info: types.
     return newValue
 end
 
-function TransactionManager.checkResolvedCache(self: TransactionManager, id: string): boolean?
+function TransactionManager.checkResolvedCache(self: TransactionManager, id: string): number?
     local key = string.sub(id, 1, 2)
     local cached = self.cache[key]
     if cached and cached[1] == id then
@@ -78,22 +79,22 @@ function TransactionManager.checkResolvedCache(self: TransactionManager, id: str
     return nil
 end
 
-function TransactionManager.forceMarkResolved(self: TransactionManager, id: string, failsAfter: number, timeoutAfter: number, status: boolean): boolean
-    if status == false then return false end
+function TransactionManager.forceMarkResolved(self: TransactionManager, id: string, failsAfter: number, timeoutAfter: number, status: number): number
+    if status == 0 then return 0 end
 
     local now = DateTime.now().UnixTimestampMillis
     if now > timeoutAfter then
-        return false
+        return 0
     end
 
     local _,keyInfo = TransactionDataStore:UpdateAsync(id, function()
-        return true, nil, nil
+        return status, nil, nil
     end)
 
-    return not (keyInfo.UpdatedTime > failsAfter)
+    return if keyInfo.UpdatedTime > failsAfter then 0 else status
 end
 
-function TransactionManager.markResolved(self: TransactionManager, id: string, failsAfter: number, timeoutAfter: number, status: boolean): boolean
+function TransactionManager.markResolved(self: TransactionManager, id: string, failsAfter: number, timeoutAfter: number, status: number): number
     local cached = self:checkResolvedCache(id)
     if cached ~= nil then
         return cached
