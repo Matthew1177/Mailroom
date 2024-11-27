@@ -8,18 +8,18 @@ local types = require(script.Parent.types)
 local Collection = {}
 Collection.__index = Collection
 
+local DOCUMENT_CACHE_METATABLE = {
+    __mode = "v"
+}
+
 export type Collection<Data, Metadata, Action> = typeof(setmetatable({} :: {
     dataStore: DataStore,
     loadTransform: types.LoadTransform<Data, Metadata, Action>,
     saveTransform: types.SaveTransform<Data, Metadata, Action>,
     reducer: types.Reducer<Data, Metadata, Action>,
     transactionManager: TransactionManager.TransactionManager,
-    documents: { [string]: Document.Document<Data, Metadata, Action>? }
+    documents: typeof(setmetatable({} :: { [string]: Document.Document<Data, Metadata, Action>? }, DOCUMENT_CACHE_METATABLE))
 }, Collection))
-
-local DOCUMENT_CACHE_METATABLE = {
-    __mode = "v"
-}
 
 function Collection.new<Data, Metadata, Action>(
     dataStore: DataStore,
@@ -34,7 +34,7 @@ function Collection.new<Data, Metadata, Action>(
         saveTransform = saveTransform,
         reducer = reducer,
         transactionManager = transactionManager,
-        documents = setmetatable({}, DOCUMENT_CACHE_METATABLE) :: any,
+        documents = setmetatable({}, DOCUMENT_CACHE_METATABLE),
     }, Collection)
 
     return self

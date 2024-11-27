@@ -154,7 +154,7 @@ end
     `actionsMap` is a map of snapshots or documents to an array of [ActionSet]s to run on them. The actions are applied in the order they are given.
 
     @method runTransaction
-    @param actionsMap {ActionSet}
+    @param actionsMap {[Snapshot | Document]: {ActionSet}}
     @return number
     @yields
     @within Mailroom

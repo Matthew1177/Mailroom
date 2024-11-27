@@ -55,7 +55,7 @@ function File.set<T>(self: File<T>, value: T): string
     return self.datastore:SetAsync(self.key, data, userIds, setOptions)
 end
 
-function File.update<T>(self: File<T>, callback: (T) -> T?): T
+function File.update<T>(self: File<T>, callback: UpdateTransform<T>?): T
     local success: boolean, err: any = false, nil
     local updater: DataStoreUpdateCallback = function(data, keyInfo)
         local loadSuccess, loaded = pcall(self.loadTransform, data, keyInfo)
