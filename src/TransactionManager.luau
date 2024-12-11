@@ -1,5 +1,3 @@
-local DataStoreService = game:GetService("DataStoreService") :: DataStoreService
-local TransactionDataStore = DataStoreService:GetDataStore("MailroomTransactions") :: DataStore
 local types = require(script.Parent.types)
 
 local NO_CACHE_OPTIONS = Instance.new("DataStoreGetOptions")
@@ -10,16 +8,17 @@ TransactionManager.__index = TransactionManager
 
 export type TransactionManager = typeof(setmetatable(
     {} :: {
+        transactionDataStore: DataStore,
         cache: {[string]: {any}},
     },
     TransactionManager
 ))
 
-function TransactionManager.new(): TransactionManager
+function TransactionManager.new(transactionDataStore: DataStore): TransactionManager
     local self = setmetatable({
+        transactionDataStore = transactionDataStore,
+        cache = {},
     }, TransactionManager)
-
-    self.cache = {} -- TODO: make LRU cache
 
     return self
 end
@@ -28,7 +27,7 @@ function TransactionManager.forceCheckResolved(self: TransactionManager, info: t
     local fails = 0
     repeat
         local success: boolean, result: unknown, keyInfo: DataStoreKeyInfo = pcall(function()
-            return TransactionDataStore:GetAsync(info.id, NO_CACHE_OPTIONS)
+            return self.transactionDataStore:GetAsync(info.id, NO_CACHE_OPTIONS)
         end)
 
         local now = DateTime.now().UnixTimestampMillis
@@ -87,7 +86,7 @@ function TransactionManager.forceMarkResolved(self: TransactionManager, id: stri
         return 0
     end
 
-    local _,keyInfo = TransactionDataStore:UpdateAsync(id, function()
+    local _,keyInfo = self.transactionDataStore:UpdateAsync(id, function()
         return status, nil, nil
     end)
 

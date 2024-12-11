@@ -9,6 +9,9 @@ local types = require(script.Parent.types)
 
 local HttpService = game:GetService("HttpService") :: HttpService
 
+local DataStoreService = game:GetService("DataStoreService") :: DataStoreService
+local DEFAULT_TRANSACTION_DATASTORE = DataStoreService:GetDataStore("MailroomTransactions") :: DataStore
+
 --[=[
     @class Mailroom
 ]=]
@@ -22,13 +25,20 @@ export type Mailroom = typeof(setmetatable(
     Mailroom
 ))
 
+type MailroomOptions = {
+    transactionDataStore: DataStore?,
+}
+
 --[=[
     Construct a new Mailroom instance. In general, only one Mailroom instance should be created.
     @return Mailroom
 ]=]
-function Mailroom.new(): Mailroom
+function Mailroom.new(options: MailroomOptions?): Mailroom
+    local transactionDataStore = if options and options.transactionDataStore
+        then options.transactionDataStore else DEFAULT_TRANSACTION_DATASTORE
+
     local self = setmetatable({
-        transactionManager = TransactionManager.new(),
+        transactionManager = TransactionManager.new(transactionDataStore),
     }, Mailroom)
 
     return self
