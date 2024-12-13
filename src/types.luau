@@ -29,7 +29,16 @@ export type DocumentData<Data, Metadata> = {
 ]=]
 export type Reducer<Data, Metadata, Action> = (DocumentData<Data, Metadata>, Action) -> DocumentData<Data, Metadata>
 
-export type TransactionInfo<Action> = {
+export type TransactionInfo<Data> = {
+    id: string,
+    -- if resolved and after failsAfter, transaction will be considered failed
+    failsAfter: number,
+    -- if not resolved after timeoutAfter, transaction will be considered failed
+    timeoutAfter: number,
+    data: {Data},
+}
+
+export type TransactionOptions<Action> = {
     id: string,
     -- if resolved and after failsAfter, transaction will be considered failed
     failsAfter: number,
@@ -40,7 +49,7 @@ export type TransactionInfo<Action> = {
 
 export type DocumentDataInternal<Data, Metadata, Action> = DocumentData<Data, Metadata> & {
     mailroom: {
-        transaction: TransactionInfo<Action>?,
+        transaction: TransactionInfo<Data>?,
     }
 }
 

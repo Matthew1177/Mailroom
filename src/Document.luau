@@ -98,20 +98,18 @@ end
 function Document.get<Data, Metadata, Action>(self: Document<Data, Metadata, Action>): types.DocumentDataInternal<Data, Metadata, Action>
     local result = self.file:get()
     local txInfo = result.mailroom.transaction
+
     if txInfo then
         Debug.info("Document.get for", self.file.key, "found transaction", {txInfo.id})
         local resolved = self.transactionManager:checkResolved(txInfo)
         Debug.info("Document.get transaction", txInfo.id, "resolved:", resolved)
         result.mailroom.transaction = nil
 
-        local patchResult = patch(result, self.reducer, txInfo.actions, resolved)
-        Debug.debug("Document.get transaction", txInfo.id, "patch result:", patchResult)
-        if not patchResult.success then
-            warn("Failed to apply transaction patch; " ..
-                "the reducer may have side effects or have changed since the transaction was created for", self)
+        if resolved > 0 then
+            result.data = txInfo.data[resolved]
         end
-        return patchResult.data
     end
+
     return result
 end
 
@@ -120,7 +118,7 @@ function Document.patch<Data, Metadata, Action>(
     actions: {{Action}},
     oldTransactionId: string?,
     oldTransactionResolved: number?,
-    newTransactionInfo: types.TransactionInfo<Action>?
+    newTransactionInfo: types.TransactionOptions<Action>?
 ): (patch.PatchResult<types.DocumentDataInternal<Data, Metadata, Action>, Action>, number?)
     local patchResult: patch.PatchResult<types.DocumentDataInternal<Data, Metadata, Action>, Action>
     local newTransactionSucceeded: number? = nil
@@ -145,29 +143,37 @@ function Document.patch<Data, Metadata, Action>(
 
             internal.transaction = nil
             Debug.info("Document.patch transaction", txInfo.id, "already resolved, applying patch")
-            local transactionPatch = patch(data, self.reducer, txInfo.actions, oldTransactionResolved)
-            Debug.debug("Document.patch transaction", txInfo.id, "patch result:", transactionPatch)
-            if not transactionPatch.success then
-                warn("Failed to apply transaction patch; " ..
-                    "the reducer may have side effects or have changed since the transaction was created for", self)
-                -- we can't fully apply the transaction, so we'll just apply as much as we can
-                -- this isn't ideal, but it's better than forcing the document to remain in an
-                -- invalid state
+            
+            data = table.clone(data)
+            if oldTransactionResolved and oldTransactionResolved > 0 then
+                data.data = txInfo.data[oldTransactionResolved]               
             end
-            data = transactionPatch.data                
         end
 
         data = table.clone(data)
         data.mailroom = internal
         patchResult = patch(data, self.reducer, actions)
 
+        data = table.clone(patchResult.data)
         internal = table.clone(data.mailroom)
 
         if newTransactionInfo and patchResult.success then
             Debug.info("Document.patch for", self, "applying new transaction", newTransactionInfo.id)
             local result = patch(data, self.reducer, newTransactionInfo.actions)
             Debug.debug("Document.patch new transaction", newTransactionInfo.id, "patch result:", result)
-            internal.transaction = newTransactionInfo
+
+            local dataValues = {} :: {Data}
+
+            for i,v in result.returns do
+                table.insert(dataValues, v.data)
+            end
+
+            internal.transaction = {
+                id = newTransactionInfo.id,
+                failsAfter = newTransactionInfo.failsAfter,
+                timeoutAfter = newTransactionInfo.timeoutAfter,
+                data = dataValues,
+            }
             if result.success then
                 newTransactionSucceeded = #newTransactionInfo.actions
             else

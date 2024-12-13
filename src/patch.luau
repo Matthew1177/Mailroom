@@ -5,6 +5,7 @@ export type Reducer<Data, Action> = (data: Data, action: Action) -> Data
 export type PatchResultSuccess<Data, Action> = {
     success: true,
     data: Data,
+    returns: {Data}
 }
 
 export type PatchResultFailure<Data, Action> = {
@@ -15,6 +16,7 @@ export type PatchResultFailure<Data, Action> = {
     actionGroup: {Action},
     actionGroupIndex: number,
     actionIndex: number,
+    returns: {Data}
 }
 
 export type PatchResult<Data, Action> = PatchResultSuccess<Data, Action> | PatchResultFailure<Data, Action>
@@ -31,6 +33,7 @@ local function patch<Data, Action>(
     stopAfter: number?
 ): PatchResult<Data, Action>
     local head = deepFreeze(data)
+    local returns = {} :: {Data}
     for i, actionGroup in actions do
         if stopAfter and i > stopAfter then
             break
@@ -48,17 +51,20 @@ local function patch<Data, Action>(
                     actionGroup = actionGroup,
                     actionGroupIndex = i,
                     actionIndex = j,
+                    returns = returns,
                 }
             end
             
             newHead = deepFreeze(result)
+            table.insert(returns, newHead)
         end
         head = newHead
     end
 
     return {
         success = true,
-        data = deepFreeze(head)
+        data = deepFreeze(head),
+        returns = returns,
     }
 end
 
