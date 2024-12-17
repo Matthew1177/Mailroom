@@ -224,7 +224,6 @@ end
     @param dataStore DataStore
     @param loadTransform LoadTransform
     @param saveTransform SaveTransform
-    @param reducer Reducer
     @return Collection
     @within Mailroom
 ]=]
