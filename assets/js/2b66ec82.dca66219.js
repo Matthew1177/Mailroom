@@ -1,1 +1,0 @@
-"use strict";(self.webpackChunkdocs=self.webpackChunkdocs||[]).push([[697],{4410:o=>{o.exports=JSON.parse('{"sourceUrl":"https://github.com/Matthew1177/Mailroom/blob/master","baseUrl":"/Mailroom/","classOrder":["Mailroom","Collection","Document","Snapshot"],"apiCategories":[]}')}}]);
