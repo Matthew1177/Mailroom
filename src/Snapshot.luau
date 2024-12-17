@@ -12,26 +12,25 @@ local Snapshot = {}
 Snapshot.__index = Snapshot
 Snapshot._type = "Snapshot" :: "Snapshot"
 
-type SnapshotParent<Data,Metadata,Action> = Snapshot<Data,Metadata,Action> | Document.Document<Data,Metadata,Action>
+type SnapshotParent<Data> = Snapshot<Data> | Document.Document<Data>
 
-export type Snapshot<Data,Metadata,Action> = typeof(setmetatable(
+export type Snapshot<Data> = typeof(setmetatable(
     {} :: {
-        parent: SnapshotParent<Data,Metadata,Action>,
-        head: types.DocumentDataInternal<Data,Metadata,Action>,
-        base: types.DocumentDataInternal<Data,Metadata,Action>,
-        actions: {Action},
-        reducer: Document.InternalReducer<Data,Metadata,Action>,
+        parent: SnapshotParent<Data>,
+        head: Data,
+        base: Data,
+        actions: {types.Action<Data>},
         lock: Lock.Lock,
         updateCallback: () -> ()?,
     },
     Snapshot
 ))
 
-function Snapshot.new<Data,Metadata,Action>(
-    parent: SnapshotParent<Data,Metadata,Action>,
-    data: types.DocumentDataInternal<Data,Metadata,Action>,
+function Snapshot.new<Data>(
+    parent: SnapshotParent<Data>,
+    data: Data,
     updateCallback: () -> ()?
-): Snapshot<Data,Metadata,Action>
+): Snapshot<Data>
     deepFreeze(data)
 
     local self = setmetatable({
@@ -39,7 +38,6 @@ function Snapshot.new<Data,Metadata,Action>(
         head = data,
         base = data,
         actions = {},
-        reducer = parent.reducer,
         lock = Lock.new(),
         updateCallback = updateCallback,
     }, Snapshot)
@@ -55,33 +53,29 @@ end
     Get the current data and metadata of the snapshot.
 
     @method get
-    @return DocumentData
+    @return Data
     @within Snapshot
 ]=]
-function Snapshot.get<Data,Metadata,Action>(
-    self: Snapshot<Data,Metadata,Action>
-): types.DocumentData<Data,Metadata>
-    return table.freeze({
-        data = self.head.data,
-        metadata = self.head.metadata,
-        userIds = self.head.userIds,
-    }) :: any
+function Snapshot.get<Data>(
+    self: Snapshot<Data>
+): Data
+    return self.head
 end
 
 --[=[
-    Dispatch an action to the snapshot.
+    Update the snapshot.
 
-    @method dispatch
+    @method update
     @param action Action
     @return PatchResult
     @within Snapshot
 ]=]
-function Snapshot.dispatch<Data,Metadata,Action>(
-    self: Snapshot<Data,Metadata,Action>,
-    action: Action
-): patch.PatchResult<types.DocumentDataInternal<Data,Metadata,Action>, Action>
+function Snapshot.update<Data>(
+    self: Snapshot<Data>,
+    action: types.Action<Data>
+): patch.PatchResult<Data>
     -- apply patch
-    local result = patch(self.head, self.reducer, {{action}})
+    local result = patch(self.head,{action})
     if result.success then
         self.head = result.data
         table.insert(self.actions, action)
@@ -95,15 +89,15 @@ function Snapshot.dispatch<Data,Metadata,Action>(
 end
 
 -- not actually async
-function Snapshot.patch<Data,Metadata,Action>(
-    self: Snapshot<Data,Metadata,Action>,
-    actions: {{Action}}
-): patch.PatchResult<types.DocumentDataInternal<Data,Metadata,Action>, Action>
-    local result = patch(self.head, self.reducer, actions)
+function Snapshot.patch<Data>(
+    self: Snapshot<Data>,
+    actions: {types.Action<Data>}
+): patch.PatchResult<Data>
+    local result = patch(self.head, actions)
     self.head = result.data
 
     for i, action in actions do
-        if not result.success and i >= result.actionGroupIndex then break end
+        if not result.success and i >= result.index then break end
         table.insert(self.actions, action)
     end
 
@@ -114,18 +108,18 @@ function Snapshot.patch<Data,Metadata,Action>(
     return result
 end
 
-function Snapshot._sync<Data,Metadata,Action>(
-    self: Snapshot<Data,Metadata,Action>,
-    newTransactionInfo: types.TransactionInfo<Action>?
-): (patch.PatchResult<types.DocumentDataInternal<Data,Metadata,Action>, Action>, number?)
+function Snapshot._sync<Data>(
+    self: Snapshot<Data>,
+    newTransactionInfo: types.TransactionOptions<Data>?
+): (patch.PatchResult<Data>, number?)
     local actions = table.clone(self.actions)
-    local result: patch.PatchResult<types.DocumentDataInternal<Data,Metadata,Action>, Action>
+    local result: patch.PatchResult<Data>
     local didTransactionSucceed: number?
     if newTransactionInfo then
         assert(self.parent._type == "Document", "Cannot run a transaction on a snapshot that does not have a document as parent")
-        result, didTransactionSucceed = (self.parent :: Document.Document<Data,Metadata,Action>):patch(actions, nil, nil, newTransactionInfo)
+        result, didTransactionSucceed = (self.parent :: Document.Document<Data>):patch(actions, nil, nil, newTransactionInfo)
     else
-        result, didTransactionSucceed = (self.parent :: Snapshot<Data,Metadata,Action>):patch(actions)
+        result, didTransactionSucceed = (self.parent :: Snapshot<Data>):patch(actions)
     end
 
     -- reapply actions
@@ -139,11 +133,11 @@ function Snapshot._sync<Data,Metadata,Action>(
         newActions = {}
     end
 
-    local newResult = patch(result.data, self.reducer, newActions)
+    local newResult = patch(result.data, newActions)
 
     self.base = result.data
     self.head = newResult.data
-    self.actions = {unpack(newActions, 1, if newResult.success then nil else newResult.actionGroupIndex - 1)}
+    self.actions = {unpack(newActions, 1, if newResult.success then nil else newResult.index - 1)}
 
     if self.updateCallback then
         task.spawn(self.updateCallback)
@@ -163,8 +157,8 @@ end
     @return PatchResult
     @within Snapshot
 ]=]
-function Snapshot.sync<Data,Metadata,Action>(
-    self: Snapshot<Data,Metadata,Action>
+function Snapshot.sync<Data>(
+    self: Snapshot<Data>
 )
     local doUnlock = self.lock:lock()
 

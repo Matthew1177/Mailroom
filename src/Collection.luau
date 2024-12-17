@@ -12,27 +12,24 @@ local DOCUMENT_CACHE_METATABLE = {
     __mode = "v"
 }
 
-export type Collection<Data, Metadata, Action> = typeof(setmetatable({} :: {
+export type Collection<Data> = typeof(setmetatable({} :: {
     dataStore: DataStore,
-    loadTransform: types.LoadTransform<Data, Metadata, Action>,
-    saveTransform: types.SaveTransform<Data, Metadata, Action>,
-    reducer: types.Reducer<Data, Metadata, Action>,
+    loadTransform: types.LoadTransform<Data>,
+    saveTransform: types.SaveTransform<Data>,
     transactionManager: TransactionManager.TransactionManager,
-    documents: typeof(setmetatable({} :: { [string]: Document.Document<Data, Metadata, Action>? }, DOCUMENT_CACHE_METATABLE))
+    documents: typeof(setmetatable({} :: { [string]: Document.Document<Data>? }, DOCUMENT_CACHE_METATABLE))
 }, Collection))
 
-function Collection.new<Data, Metadata, Action>(
+function Collection.new<Data>(
     dataStore: DataStore,
-    loadTransform: types.LoadTransform<Data, Metadata, Action>,
-    saveTransform: types.SaveTransform<Data, Metadata, Action>,
-    reducer: types.Reducer<Data, Metadata, Action>,
+    loadTransform: types.LoadTransform<Data>,
+    saveTransform: types.SaveTransform<Data>,
     transactionManager: TransactionManager.TransactionManager
-): Collection<Data, Metadata, Action>
+): Collection<Data>
     local self = setmetatable({
         dataStore = dataStore,
         loadTransform = loadTransform,
         saveTransform = saveTransform,
-        reducer = reducer,
         transactionManager = transactionManager,
         documents = setmetatable({}, DOCUMENT_CACHE_METATABLE),
     }, Collection)
@@ -48,14 +45,14 @@ end
     @return Document
     @within Collection
 ]=]
-function Collection.get<Data, Metadata, Action>(
-    self: Collection<Data, Metadata, Action>,
+function Collection.get<Data>(
+    self: Collection<Data>,
     key: string
-): Document.Document<Data, Metadata, Action>
+): Document.Document<Data>
     local cached = self.documents[key]
 
     if not cached then
-        local doc = Document.new(self.dataStore, key, self.loadTransform, self.saveTransform, self.reducer, self.transactionManager)
+        local doc = Document.new(self.dataStore, key, self.loadTransform, self.saveTransform, self.transactionManager)
         self.documents[key] = doc
         
         return doc

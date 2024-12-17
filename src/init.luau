@@ -2,8 +2,8 @@ local Collection = require(script.Collection)
 local Document = require(script.Document)
 local Snapshot = require(script.Snapshot)
 
-export type Document<Data,Metadata,Action> = Document.Document<Data,Metadata,Action>
-export type Snapshot<Data,Metadata,Action> = Snapshot.Snapshot<Data,Metadata,Action>
-export type Collection<Data,Metadata,Action> = Collection.Collection<Data,Metadata,Action>
+export type Document<Data> = Document.Document<Data>
+export type Snapshot<Data> = Snapshot.Snapshot<Data>
+export type Collection<Data> = Collection.Collection<Data>
 
 return require(script.Mailroom)

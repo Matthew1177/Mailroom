@@ -12,30 +12,24 @@ local Document = {}
 Document.__index = Document
 Document._type = "Document" :: "Document"
 
-export type InternalReducer<Data, Metadata, Action> = patch.Reducer<types.DocumentDataInternal<Data, Metadata, Action>, Action>
-
-export type Document<Data, Metadata, Action> = typeof(setmetatable(
+export type Document<Data> = typeof(setmetatable(
     {} :: {
-        file: File.File<types.DocumentDataInternal<Data, Metadata, Action>>,
-        reducer: InternalReducer<Data, Metadata, Action>,
+        file: File.File<types.DocumentDataInternal<Data>>,
         transactionManager: TransactionManager.TransactionManager,
     },
     Document
 ))
 
-local function documentLoadTransformWrapper<Data, Metadata, Action>(loadTransform: types.LoadTransform<Data, Metadata, Action>)
-    local transform: File.LoadTransform<types.DocumentDataInternal<Data, Metadata, Action>> = function(data: unknown?, keyInfo: DataStoreKeyInfo?)
+local function documentLoadTransformWrapper<Data>(loadTransform: types.LoadTransform<Data>)
+    local transform: File.LoadTransform<types.DocumentDataInternal<Data>> = function(data: unknown?, keyInfo: DataStoreKeyInfo?)
         if typeof(data) ~= "table" then
             data = {}
             Debug.debug("Document data was not a table, initializing to empty table")
         end
 
-        local inner, metadata = loadTransform((data :: any).data, keyInfo)
-        local userIds = if keyInfo ~= nil then keyInfo:GetUserIds() else {} :: {number}
+        local inner = loadTransform((data :: any).data)
         return {
             data = inner,
-            metadata = metadata,
-            userIds = userIds,
             mailroom = (data :: any).mailroom or {} :: any
         }
     end
@@ -43,59 +37,33 @@ local function documentLoadTransformWrapper<Data, Metadata, Action>(loadTransfor
     return transform
 end
 
-local function documentSaveTransformWrapper<Data, Metadata, Action>(saveTransform: (data: Data, metadata: Metadata) -> (any, {[any]: any}))
-    local transform: File.SaveTransform<types.DocumentDataInternal<Data, Metadata, Action>> = function(data)
-        local inner, metadata = saveTransform(data.data, data.metadata)
+local function documentSaveTransformWrapper<Data>(saveTransform: types.SaveTransform<Data>)
+    local transform: File.SaveTransform<types.DocumentDataInternal<Data>> = function(data)
+        local inner = saveTransform(data.data)
         return {
             data = inner,
             mailroom = data.mailroom,
-        }, data.userIds, metadata
+        }
     end
 
     return transform
 end
 
-local function reducerWrapper<Data, Metadata, Action>(reducer: (types.DocumentData<Data, Metadata>, Action) -> types.DocumentData<Data, Metadata>)
-    local wrapped: InternalReducer<Data, Metadata, Action> = function(data: types.DocumentDataInternal<Data, Metadata, Action>, action: Action)
-        local mailroom = data.mailroom
-        local newData = reducer({
-            data = data.data,
-            metadata = data.metadata,
-            userIds = data.userIds,
-        }, action)
-        assert(typeof(newData) == "table", "Reducer must return a table")
-
-        assert(typeof(newData.metadata) == "table", "Reducer must return a table with a metadata field")
-        assert(typeof(newData.userIds) == "table", "Reducer must return a table with a userIds field")
-
-        return {
-            data = newData.data,
-            metadata = newData.metadata,
-            userIds = newData.userIds,
-            mailroom = mailroom,
-        }
-    end
-
-    return wrapped
-end
-
-function Document.new<Data, Metadata, Action>(
+function Document.new<Data>(
     dataStore: DataStore,
     key: string,
-    loadTransform: types.LoadTransform<Data, Metadata, Action>,
-    saveTransform: types.SaveTransform<Data, Metadata, Action>,
-    reducer: types.Reducer<Data, Metadata, Action>,
+    loadTransform: types.LoadTransform<Data>,
+    saveTransform: types.SaveTransform<Data>,
     transactionManager: TransactionManager.TransactionManager
-): Document<Data, Metadata, Action>
+): Document<Data>
     local self = setmetatable({
         file = File.new(dataStore, key, documentLoadTransformWrapper(loadTransform), documentSaveTransformWrapper(saveTransform)),
-        reducer = reducerWrapper(reducer),
         transactionManager = transactionManager,
     }, Document)
     return self
 end
 
-function Document.get<Data, Metadata, Action>(self: Document<Data, Metadata, Action>): types.DocumentDataInternal<Data, Metadata, Action>
+function Document.get<Data>(self: Document<Data>): Data
     local result = self.file:get()
     local txInfo = result.mailroom.transaction
 
@@ -110,21 +78,22 @@ function Document.get<Data, Metadata, Action>(self: Document<Data, Metadata, Act
         end
     end
 
-    return result
+    return result.data
 end
 
-function Document.patch<Data, Metadata, Action>(
-    self: Document<Data, Metadata, Action>,
-    actions: {{Action}},
+function Document.patch<Data>(
+    self: Document<Data>,
+    actions: {types.Action<Data>},
     oldTransactionId: string?,
     oldTransactionResolved: number?,
-    newTransactionInfo: types.TransactionOptions<Action>?
-): (patch.PatchResult<types.DocumentDataInternal<Data, Metadata, Action>, Action>, number?)
-    local patchResult: patch.PatchResult<types.DocumentDataInternal<Data, Metadata, Action>, Action>
+    newTransactionInfo: types.TransactionOptions<Data>?
+): (patch.PatchResult<Data>, number?)
+    local patchResult: patch.PatchResult<Data>
     local newTransactionSucceeded: number? = nil
-    local data = self.file:update(function(data: types.DocumentDataInternal<Data, Metadata, Action>): types.DocumentDataInternal<Data, Metadata, Action>?
-        local internal = table.clone(data.mailroom)
+    local data = self.file:update(function(data: types.DocumentDataInternal<Data>): types.DocumentDataInternal<Data>?
+        local internal = data.mailroom
         local txInfo = internal.transaction
+
         if txInfo then
             Debug.info("Document.patch for", self, "found transaction", txInfo.id)
             if txInfo.id ~= oldTransactionId then
@@ -143,30 +112,22 @@ function Document.patch<Data, Metadata, Action>(
 
             internal.transaction = nil
             Debug.info("Document.patch transaction", txInfo.id, "already resolved, applying patch")
-            
-            data = table.clone(data)
+
             if oldTransactionResolved and oldTransactionResolved > 0 then
-                data.data = txInfo.data[oldTransactionResolved]               
+                data.data = txInfo.data[oldTransactionResolved]
             end
         end
 
-        data = table.clone(data)
-        data.mailroom = internal
-        patchResult = patch(data, self.reducer, actions)
+        patchResult = patch(data.data, actions)
 
-        data = table.clone(patchResult.data)
-        internal = table.clone(data.mailroom)
+        data.data = patchResult.data
 
         if newTransactionInfo and patchResult.success then
             Debug.info("Document.patch for", self, "applying new transaction", newTransactionInfo.id)
-            local result = patch(data, self.reducer, newTransactionInfo.actions)
+            local result = patch(data.data, newTransactionInfo.actions)
             Debug.debug("Document.patch new transaction", newTransactionInfo.id, "patch result:", result)
 
-            local dataValues = {} :: {Data}
-
-            for i,v in result.returns do
-                table.insert(dataValues, v.data)
-            end
+            local dataValues = result.returns
 
             internal.transaction = {
                 id = newTransactionInfo.id,
@@ -177,12 +138,9 @@ function Document.patch<Data, Metadata, Action>(
             if result.success then
                 newTransactionSucceeded = #newTransactionInfo.actions
             else
-                newTransactionSucceeded = result.actionGroupIndex - 1
+                newTransactionSucceeded = result.index - 1
             end
         end
-
-        data = table.clone(patchResult.data)
-        data.mailroom = internal
 
         return data
     end)
@@ -199,11 +157,10 @@ function Document.patch<Data, Metadata, Action>(
 
     Debug.debug("Document.patch for", self, "patch result:", patchResult)
 
-    ;(patchResult :: any).data = data
     return patchResult, newTransactionSucceeded
 end
 
-function Document.__tostring(self: Document<any, any, any>): string
+function Document.__tostring(self: Document<any>): string
     return `Document({self.file})`
 end
 

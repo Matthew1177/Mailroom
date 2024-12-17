@@ -1,33 +1,20 @@
 --[=[
-    @type LoadTransform (data: unknown?, keyInfo: DataStoreKeyInfo?) -> (Data, Metadata)
+    @type LoadTransform (data: unknown?) -> Data
     @within Document
 ]=]
-export type LoadTransform<Data, Metadata, Action> = (data: unknown?, keyInfo: DataStoreKeyInfo?) -> (Data, Metadata)
+export type LoadTransform<Data> = (data: unknown?) -> Data
 
 --[=[
-    @type SaveTransform (data: Data, metadata: Metadata) -> (any, {[any]: any})
+    @type SaveTransform (data: Data) -> any
     @within Document
 ]=]
-export type SaveTransform<Data, Metadata, Action> = (data: Data, metadata: Metadata) -> (any, {[any]: any})
+export type SaveTransform<Data> = (data: Data) -> any
 
 --[=[
-    @interface DocumentData
-    @field data Data
-    @field metadata Metadata
-    @field userIds {number}
+    @type Action (data: Data) -> Data?
     @within Document
 ]=]
-export type DocumentData<Data, Metadata> = {
-    data: Data,
-    metadata: Metadata,
-    userIds: {number},
-}
-
---[=[
-    @type Reducer (DocumentData, Action) -> DocumentData
-    @within Document
-]=]
-export type Reducer<Data, Metadata, Action> = (DocumentData<Data, Metadata>, Action) -> DocumentData<Data, Metadata>
+export type Action<Data> = (Data) -> Data?
 
 export type TransactionInfo<Data> = {
     id: string,
@@ -38,16 +25,17 @@ export type TransactionInfo<Data> = {
     data: {Data},
 }
 
-export type TransactionOptions<Action> = {
+export type TransactionOptions<Data> = {
     id: string,
     -- if resolved and after failsAfter, transaction will be considered failed
     failsAfter: number,
     -- if not resolved after timeoutAfter, transaction will be considered failed
     timeoutAfter: number,
-    actions: {Action}
+    actions: {Action<Data>}
 }
 
-export type DocumentDataInternal<Data, Metadata, Action> = DocumentData<Data, Metadata> & {
+export type DocumentDataInternal<Data> = {
+    data: Data,
     mailroom: {
         transaction: TransactionInfo<Data>?,
     }

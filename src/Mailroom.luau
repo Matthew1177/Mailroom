@@ -46,7 +46,7 @@ end
 
 function Mailroom._runTransaction(
     self: Mailroom, 
-    actionsMap: {[Snapshot.Snapshot<any, any, any> | Document.Document<any, any, any>]: {any}}
+    actionsMap: {[Snapshot.Snapshot<any> | Document.Document<any>]: {any}}
 ): number
     local mainThread = coroutine.running()
 
@@ -70,7 +70,7 @@ function Mailroom._runTransaction(
 
     for snapshotOrDocument, actions in actionsMap do
         local coro = coroutine.create(function()
-            local txInfo = {
+            local txInfo: types.TransactionOptions<any> = {
                 id = transactionId,
                 failsAfter = failsAfter,
                 timeoutAfter = timeoutAfter,
@@ -79,9 +79,9 @@ function Mailroom._runTransaction(
             local _, didTransactionSucceed: number? = nil
             local success, message = (pcall :: any)(function()
                 if snapshotOrDocument._type == "Document" then
-                    _, didTransactionSucceed = (snapshotOrDocument :: Document.Document<any, any, any>):patch({}, nil, nil, txInfo)
+                    _, didTransactionSucceed = (snapshotOrDocument :: Document.Document<any>):patch({}, nil, nil, txInfo)
                 else
-                    _, didTransactionSucceed = (snapshotOrDocument :: Snapshot.Snapshot<any, any, any>):_sync(txInfo)
+                    _, didTransactionSucceed = (snapshotOrDocument :: Snapshot.Snapshot<any>):_sync(txInfo)
                 end
             end)
 
@@ -131,8 +131,8 @@ function Mailroom._runTransaction(
 
     for snapshotOrDocument, actions in actionsMap do
         if snapshotOrDocument._type == "Snapshot" then
-            local base = (snapshotOrDocument :: Snapshot.Snapshot<any, any, any>).base
-            local tResult = patch(base, snapshotOrDocument.reducer, actions, didResolve)
+            local base = (snapshotOrDocument :: Snapshot.Snapshot<any>).base
+            local tResult = patch(base, actions, didResolve)
             if not tResult.success then
                 -- throw error in new thread
                 task.spawn(error, "Transaction failed to apply after resolution - reducer may have side effects")
@@ -140,17 +140,12 @@ function Mailroom._runTransaction(
             end
             local newBase = tResult.data
             ;(snapshotOrDocument :: any).base = newBase
-            local result = patch(newBase, snapshotOrDocument.reducer, (snapshotOrDocument :: any).actions)
-            -- remove .transaction
-            local data = table.clone(result.data)
-            local internal = table.clone(data.mailroom)
-            internal.transaction = nil
-            data.mailroom = internal
-            ;(snapshotOrDocument :: any).head = data
+            local result = patch(newBase, (snapshotOrDocument :: any).actions)
             -- remove any actions that were not applied
             if not result.success then
-                (snapshotOrDocument :: any).actions = {unpack((snapshotOrDocument :: any).actions, 1, result.actionGroupIndex - 1)}
+                (snapshotOrDocument :: any).actions = {unpack((snapshotOrDocument :: any).actions, 1, result.index - 1)}
             end
+            ;(snapshotOrDocument :: any).head = result.data
         end
     end
 
@@ -161,10 +156,10 @@ end
 --[=[
     Run a transaction on a set of snapshots and documents.
     
-    `actionsMap` is a map of snapshots or documents to an array of [ActionSet]s to run on them. The actions are applied in the order they are given.
+    `actionsMap` is a map of snapshots or documents to an array of Actions to run on them. The actions are applied in the order they are given.
 
     @method runTransaction
-    @param actionsMap {[Snapshot | Document]: {ActionSet}}
+    @param actionsMap {[Snapshot | Document]: {Action}}
     @return number
     @yields
     @within Mailroom
@@ -189,7 +184,7 @@ function Mailroom.runTransaction(
         if snapshotOrDocument._type == "Snapshot" then
             cntSnapshots += 1
             local coro = coroutine.create(function()
-                local lock = (snapshotOrDocument :: Snapshot.Snapshot<any, any, any>).lock
+                local lock = (snapshotOrDocument :: Snapshot.Snapshot<any>).lock
                 local res = lock:lock(mainThread)
                 unlockMap[lock] = res
                 cntSnapshotsUnlocked += 1
@@ -233,25 +228,23 @@ end
     @return Collection
     @within Mailroom
 ]=]
-function Mailroom.createCollection<Data, Metadata, Action>(
+function Mailroom.createCollection<Data>(
     self: Mailroom,
     dataStore: DataStore,
-    loadTransform: types.LoadTransform<Data, Metadata, Action>,
-    saveTransform: types.SaveTransform<Data, Metadata, Action>,
-    reducer: types.Reducer<Data, Metadata, Action>
-): Collection.Collection<Data, Metadata, Action>
+    loadTransform: types.LoadTransform<Data>,
+    saveTransform: types.SaveTransform<Data>
+): Collection.Collection<Data>
     return Collection.new(
         dataStore,
         loadTransform,
         saveTransform,
-        reducer,
         self.transactionManager
     )
 end
 
-function Mailroom.createDocument<Data, Metadata, Action>(
+function Mailroom.createDocument<Data>(
 self: Mailroom, dataStore, key, loadTransform, saveTransform, reducer
-): Document.Document<Data, Metadata, Action>
+): Document.Document<Data>
     return Document.new(
         dataStore,
         key,
@@ -272,18 +265,18 @@ end
     @yields
     @within Mailroom
 ]=]
-function Mailroom.createSnapshot<Data, Metadata, Action>(
+function Mailroom.createSnapshot<Data>(
     self: Mailroom,
-    parent: Document.Document<Data, Metadata, Action> | Snapshot.Snapshot<Data, Metadata, Action>,
+    parent: Document.Document<Data> | Snapshot.Snapshot<Data>,
     options: {
         updateCallback: () -> ()?,
     }?
-): Snapshot.Snapshot<Data, Metadata, Action>
+): Snapshot.Snapshot<Data>
     local updateCallback = options and options.updateCallback or nil
     if parent._type == "Document" then
-        return Snapshot.new(parent, (parent :: Document.Document<Data, Metadata, Action>):get(), updateCallback)
+        return Snapshot.new(parent, (parent :: Document.Document<Data>):get(), updateCallback)
     else
-        return Snapshot.new(parent, (parent :: Snapshot.Snapshot<Data, Metadata, Action>).head, updateCallback)
+        return Snapshot.new(parent, (parent :: Snapshot.Snapshot<Data>).head, updateCallback)
     end
 end
 

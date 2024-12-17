@@ -1,64 +1,51 @@
 local deepFreeze = require(script.Parent.deepFreeze)
+local types = require(script.Parent.types)
 
 export type Reducer<Data, Action> = (data: Data, action: Action) -> Data
-
-export type PatchResultSuccess<Data, Action> = {
+export type PatchResultSuccess<Data> = {
     success: true,
     data: Data,
     returns: {Data}
 }
 
-export type PatchResultFailure<Data, Action> = {
+export type PatchResultFailure<Data> = {
     success: false,
     data: Data,
     error: unknown,
-    action: Action,
-    actionGroup: {Action},
-    actionGroupIndex: number,
-    actionIndex: number,
+    action: types.Action<Data>,
+    index: number,
     returns: {Data}
 }
 
-export type PatchResult<Data, Action> = PatchResultSuccess<Data, Action> | PatchResultFailure<Data, Action>
+export type PatchResult<Data> = PatchResultSuccess<Data> | PatchResultFailure<Data>
 
---[=[
-    @type ActionSet {Action}
-    @within Mailroom
-]=]
-
-local function patch<Data, Action>(
+local function patch<Data>(
     data: Data,
-    reducer: Reducer<Data, Action>,
-    actions: {{Action}},
+    actions: {types.Action<Data>},
     stopAfter: number?
-): PatchResult<Data, Action>
+): PatchResult<Data>
     local head = deepFreeze(data)
     local returns = {} :: {Data}
-    for i, actionGroup in actions do
+    for i, action in actions do
         if stopAfter and i > stopAfter then
             break
         end
-        local newHead = head
-        for j, action in actionGroup do
-            local success, result = pcall(reducer, newHead, action)
 
-            if not success then
-                return {
-                    success = false,
-                    data = head,
-                    error = result,
-                    action = action,
-                    actionGroup = actionGroup,
-                    actionGroupIndex = i,
-                    actionIndex = j,
-                    returns = returns,
-                }
-            end
-            
-            newHead = deepFreeze(result)
-            table.insert(returns, newHead)
+        local success, result = pcall(action, head)
+
+        if not success then
+            return {
+                success = false,
+                data = head,
+                error = result,
+                action = action,
+                index = i,
+                returns = returns,
+            }
         end
-        head = newHead
+
+        head = if result == nil then head else deepFreeze(result)
+        table.insert(returns, head)
     end
 
     return {
